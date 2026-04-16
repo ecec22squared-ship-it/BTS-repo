@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  Share, Alert, ActivityIndicator, Platform, Linking,
+  Share, Alert, ActivityIndicator, Platform, Linking, ImageBackground,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,10 +12,14 @@ import { Character, GameSession } from '../src/types/game';
 
 const EXPO_PUBLIC_BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
+const HOLOTABLE_BG = 'https://images.unsplash.com/photo-1700863555481-b7374a3a0e50?w=1200&q=80';
+const INSTAGRAM_URL = 'https://www.instagram.com/neutrano13?igsh=ZXdreHZrcnZzbHVw';
+const DISCORD_URL = 'https://discord.gg/cmV4PMvW2';
+
 const SOCIAL_LINKS = [
   { name: 'Facebook', icon: 'logo-facebook', color: '#1877F2', url: 'https://facebook.com' },
   { name: 'X (Twitter)', icon: 'logo-twitter', color: '#1DA1F2', url: 'https://x.com' },
-  { name: 'Instagram', icon: 'logo-instagram', color: '#E1306C', url: 'https://instagram.com' },
+  { name: 'Instagram', icon: 'logo-instagram', color: '#E1306C', url: 'https://www.instagram.com/neutrano13?igsh=ZXdreHZrcnZzbHVw' },
   { name: 'TikTok', icon: 'logo-tiktok', color: '#000000', url: 'https://tiktok.com' },
   { name: 'YouTube', icon: 'logo-youtube', color: '#FF0000', url: 'https://youtube.com' },
   { name: 'Discord', icon: 'logo-discord', color: '#5865F2', url: 'https://discord.gg/cmV4PMvW2' },
@@ -104,13 +108,25 @@ export default function SocialScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.root}>
+      <ImageBackground
+        source={{ uri: HOLOTABLE_BG }}
+        style={StyleSheet.absoluteFillObject}
+        imageStyle={styles.bgImage}
+        resizeMode="cover"
+      />
+      <View style={styles.bgOverlay} pointerEvents="none" />
+
+      <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Social Media</Text>
+        <View style={styles.headerCenter}>
+          <Ionicons name="planet" size={14} color="#5EC8FF" />
+          <Text style={styles.headerTitle}>Holo-Comm Chamber</Text>
+        </View>
         <View style={{ width: 40 }} />
       </View>
 
@@ -201,7 +217,7 @@ export default function SocialScreen() {
         {/* Support Link */}
         <TouchableOpacity
           style={styles.supportCard}
-          onPress={() => Linking.openURL('https://discord.gg/cmV4PMvW2')}
+          onPress={() => Linking.openURL(DISCORD_URL)}
           activeOpacity={0.8}
         >
           <View style={[styles.supportIcon, { backgroundColor: 'rgba(88,101,242,0.18)' }]}>
@@ -214,6 +230,24 @@ export default function SocialScreen() {
             </Text>
           </View>
           <Ionicons name="open-outline" size={20} color="#5865F2" />
+        </TouchableOpacity>
+
+        {/* Contact Us */}
+        <TouchableOpacity
+          style={styles.contactCard}
+          onPress={() => Linking.openURL(INSTAGRAM_URL)}
+          activeOpacity={0.8}
+        >
+          <View style={[styles.supportIcon, { backgroundColor: 'rgba(225,48,108,0.18)' }]}>
+            <Ionicons name="logo-instagram" size={22} color="#E1306C" />
+          </View>
+          <View style={styles.supportInfo}>
+            <Text style={styles.supportTitle}>Contact Us</Text>
+            <Text style={styles.supportDesc}>
+              Reach out on Instagram @neutrano13 — questions, feedback, or fan stories
+            </Text>
+          </View>
+          <Ionicons name="open-outline" size={20} color="#E1306C" />
         </TouchableOpacity>
       </ScrollView>
 
@@ -283,17 +317,26 @@ export default function SocialScreen() {
         </View>
       )}
     </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0a0a0f' },
+  root: { flex: 1, backgroundColor: '#0a0a0f' },
+  bgImage: { opacity: 0.35 },
+  bgOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(6,10,26,0.72)',
+  },
+  container: { flex: 1, backgroundColor: 'transparent' },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    padding: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)',
+    padding: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(94,200,255,0.25)',
+    backgroundColor: 'rgba(6,15,40,0.55)',
   },
+  headerCenter: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   backBtn: { padding: 8 },
-  headerTitle: { color: '#FFD700', fontSize: 18, fontWeight: 'bold' },
+  headerTitle: { color: '#5EC8FF', fontSize: 16, fontWeight: 'bold', letterSpacing: 0.5 },
   content: { flex: 1 },
   contentInner: { padding: 16 },
 
@@ -304,8 +347,8 @@ const styles = StyleSheet.create({
   // Social grid
   socialGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   socialCard: {
-    width: '30%', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 12,
-    padding: 14, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+    width: '30%', backgroundColor: 'rgba(8,20,45,0.65)', borderRadius: 12,
+    padding: 14, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(94,200,255,0.25)',
   },
   socialIcon: {
     width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center',
@@ -325,8 +368,8 @@ const styles = StyleSheet.create({
   // Share options
   shareOption: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: 14,
-    marginBottom: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(8,20,45,0.65)', borderRadius: 12, padding: 14,
+    marginBottom: 8, borderWidth: 1, borderColor: 'rgba(94,200,255,0.2)',
   },
   shareIcon: {
     width: 40, height: 40, borderRadius: 10, justifyContent: 'center', alignItems: 'center',
@@ -346,9 +389,15 @@ const styles = StyleSheet.create({
   // Support card
   supportCard: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: 'rgba(88,101,242,0.08)', borderRadius: 12, padding: 14,
-    marginTop: 4, marginBottom: 20,
-    borderWidth: 1, borderColor: 'rgba(88,101,242,0.3)',
+    backgroundColor: 'rgba(88,101,242,0.12)', borderRadius: 12, padding: 14,
+    marginTop: 4, marginBottom: 10,
+    borderWidth: 1, borderColor: 'rgba(88,101,242,0.35)',
+  },
+  contactCard: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: 'rgba(225,48,108,0.10)', borderRadius: 12, padding: 14,
+    marginBottom: 20,
+    borderWidth: 1, borderColor: 'rgba(225,48,108,0.35)',
   },
   supportIcon: {
     width: 44, height: 44, borderRadius: 10, justifyContent: 'center', alignItems: 'center',

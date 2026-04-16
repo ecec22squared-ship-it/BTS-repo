@@ -10,11 +10,56 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ImageBackground,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useGameStore } from '../../src/stores/gameStore';
+
+// Bio-lab cloning chamber backgrounds – one per creation stage
+const BIOLAB_STAGES = [
+  {
+    // Step 0: Designation / Naming terminal
+    bg: 'https://images.unsplash.com/photo-1606206873764-fd15e242df52?w=1200&q=80',
+    label: 'IDENTIFICATION TERMINAL',
+    sub: 'Stage 01 • Genetic ID assignment',
+    tint: 'rgba(6,18,40,0.78)',
+    accent: '#5EC8FF',
+  },
+  {
+    // Step 1: Genetic / Species selection
+    bg: 'https://images.unsplash.com/photo-1606206605628-0a09580d44a1?w=1200&q=80',
+    label: 'GENOME SELECTION',
+    sub: 'Stage 02 • Species matrix calibration',
+    tint: 'rgba(8,28,30,0.78)',
+    accent: '#5DF7C3',
+  },
+  {
+    // Step 2: Career / Growth chamber training
+    bg: 'https://images.unsplash.com/photo-1645244593646-e03f0088e2d5?w=1200&q=80',
+    label: 'GROWTH CHAMBER',
+    sub: 'Stage 03 • Neural training protocol',
+    tint: 'rgba(10,22,38,0.78)',
+    accent: '#73E4FF',
+  },
+  {
+    // Step 3: Specialization / Augmentation bay
+    bg: 'https://images.unsplash.com/photo-1583870908969-89c2ea77dc34?w=1200&q=80',
+    label: 'AUGMENTATION BAY',
+    sub: 'Stage 04 • Combat specialization module',
+    tint: 'rgba(32,14,8,0.78)',
+    accent: '#FFB86C',
+  },
+  {
+    // Step 4: Backstory / Memory imprint chamber
+    bg: 'https://images.unsplash.com/photo-1637166185518-058f5896a2e9?w=1200&q=80',
+    label: 'MEMORY IMPRINT',
+    sub: 'Stage 05 • Activation & backstory upload',
+    tint: 'rgba(20,10,40,0.78)',
+    accent: '#C89BFF',
+  },
+];
 
 export default function CreateCharacter() {
   const { speciesData, careerData, fetchGameData, createCharacter } = useGameStore();
@@ -67,7 +112,7 @@ export default function CreateCharacter() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor: '#05080f' }]}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#FFD700" />
           <Text style={styles.loadingText}>Loading game data...</Text>
@@ -76,18 +121,36 @@ export default function CreateCharacter() {
     );
   }
 
+  const stage = BIOLAB_STAGES[Math.min(step, BIOLAB_STAGES.length - 1)];
+
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.root}>
+      <ImageBackground
+        source={{ uri: stage.bg }}
+        style={StyleSheet.absoluteFillObject}
+        imageStyle={styles.bgImage}
+        resizeMode="cover"
+      />
+      <View style={[styles.bgOverlay, { backgroundColor: stage.tint }]} pointerEvents="none" />
+
+      <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { borderBottomColor: `${stage.accent}40` }]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Create Character</Text>
+          <View style={styles.headerCenter}>
+            <View style={[styles.headerBadge, { borderColor: stage.accent }]}>
+              <Ionicons name="flask" size={10} color={stage.accent} />
+              <Text style={[styles.headerBadgeText, { color: stage.accent }]}>KAMINOAN GENETICS FACILITY</Text>
+            </View>
+            <Text style={[styles.headerTitle, { color: stage.accent }]}>{stage.label}</Text>
+            <Text style={styles.headerSub}>{stage.sub}</Text>
+          </View>
           <View style={{ width: 40 }} />
         </View>
 
@@ -289,6 +352,7 @@ export default function CreateCharacter() {
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
+    </View>
   );
 
   function canProceed(): boolean {
@@ -308,9 +372,14 @@ export default function CreateCharacter() {
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#05080f' },
+  bgImage: { opacity: 0.55 },
+  bgOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
   container: {
     flex: 1,
-    backgroundColor: '#0a0a0f',
+    backgroundColor: 'transparent',
   },
   loadingContainer: {
     flex: 1,
@@ -325,18 +394,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(4,10,22,0.55)',
   },
+  headerCenter: { flex: 1, alignItems: 'center' },
+  headerBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6,
+    borderWidth: 1, marginBottom: 3,
+  },
+  headerBadgeText: { fontSize: 8, fontWeight: '700', letterSpacing: 0.8 },
   backButton: {
     padding: 8,
   },
   headerTitle: {
-    color: '#FFD700',
-    fontSize: 20,
+    fontSize: 15,
     fontWeight: 'bold',
+    letterSpacing: 1.2,
   },
+  headerSub: { color: '#8AA8C9', fontSize: 9, marginTop: 1, letterSpacing: 0.6 },
   progressContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -386,29 +464,29 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   textInput: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(6,18,40,0.75)',
     borderRadius: 12,
     padding: 16,
     color: '#fff',
     fontSize: 18,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderColor: 'rgba(94,200,255,0.35)',
   },
   textArea: {
     height: 150,
     fontSize: 16,
   },
   optionCard: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: 'rgba(6,18,40,0.75)',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 2,
-    borderColor: 'transparent',
+    borderColor: 'rgba(255,255,255,0.08)',
   },
   optionCardSelected: {
     borderColor: '#FFD700',
-    backgroundColor: 'rgba(255, 215, 0, 0.1)',
+    backgroundColor: 'rgba(255, 215, 0, 0.18)',
   },
   optionHeader: {
     flexDirection: 'row',

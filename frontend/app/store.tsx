@@ -175,7 +175,7 @@ export default function StoreScreen() {
               <Ionicons name="logo-discord" size={24} color="#5865F2" />
               <Text style={styles.dealLabel}>Discord</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.dealCard} onPress={() => Linking.openURL('https://instagram.com')}>
+            <TouchableOpacity style={styles.dealCard} onPress={() => Linking.openURL('https://www.instagram.com/neutrano13?igsh=ZXdreHZrcnZzbHVw')}>
               <Ionicons name="logo-instagram" size={24} color="#E1306C" />
               <Text style={styles.dealLabel}>Instagram</Text>
             </TouchableOpacity>
