@@ -53,7 +53,7 @@ class UserBase(BaseModel):
     email: str
     name: str
     picture: Optional[str] = None
-    coins: int = 100  # Starting balance for new players
+    coins: int = 500  # Starting balance for new players
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class UserSession(BaseModel):
@@ -1314,7 +1314,7 @@ async def create_session(request: Request, response: Response):
         await db.users.update_one({"user_id": user_id}, {"$set": {"name": user_data["name"], "picture": user_data.get("picture")}})
     else:
         user_id = f"user_{uuid.uuid4().hex[:12]}"
-        await db.users.insert_one({"user_id": user_id, "email": user_data["email"], "name": user_data["name"], "picture": user_data.get("picture"), "coins": 100, "created_at": datetime.now(timezone.utc)})
+        await db.users.insert_one({"user_id": user_id, "email": user_data["email"], "name": user_data["name"], "picture": user_data.get("picture"), "coins": 500, "subscription_tier": 0, "unlocked_eras": ["Order 66 - Fall of the Republic"], "created_at": datetime.now(timezone.utc)})
     session_token = user_data.get("session_token", f"sess_{uuid.uuid4().hex}")
     expires_at = datetime.now(timezone.utc) + timedelta(days=7)
     await db.user_sessions.delete_many({"user_id": user_id})
@@ -1328,11 +1328,16 @@ async def get_me(request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    # Ensure coins field exists for older users
     user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
     if "coins" not in user_doc:
-        await db.users.update_one({"user_id": user.user_id}, {"$set": {"coins": 100}})
-        user_doc["coins"] = 100
+        await db.users.update_one({"user_id": user.user_id}, {"$set": {"coins": 500, "subscription_tier": 0, "unlocked_eras": ["Order 66 - Fall of the Republic"]}})
+        user_doc["coins"] = 500
+        user_doc["subscription_tier"] = 0
+        user_doc["unlocked_eras"] = ["Order 66 - Fall of the Republic"]
+    if "subscription_tier" not in user_doc:
+        await db.users.update_one({"user_id": user.user_id}, {"$set": {"subscription_tier": 0, "unlocked_eras": ["Order 66 - Fall of the Republic"]}})
+        user_doc["subscription_tier"] = 0
+        user_doc["unlocked_eras"] = ["Order 66 - Fall of the Republic"]
     return user_doc
 
 @api_router.get("/auth/coins")

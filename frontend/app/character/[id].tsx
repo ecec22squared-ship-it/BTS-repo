@@ -89,8 +89,8 @@ export default function CharacterDetail() {
 
   const handleStartGame = async () => {
     if (!character) return;
-    // Route to scenario selection instead of direct start
-    router.push(`/game/scenarios?characterId=${character.character_id}`);
+    // Route to era selection (which auto-skips to scenarios if only Order 66 available)
+    router.push(`/game/eras?characterId=${character.character_id}`);
   };
 
   if (!character) {

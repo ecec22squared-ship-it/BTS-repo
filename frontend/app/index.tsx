@@ -257,6 +257,20 @@ export default function Index() {
               <Ionicons name="chevron-forward" size={24} color="#FFD700" />
             </TouchableOpacity>
           )}
+
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => router.push('/store')}
+          >
+            <View style={[styles.menuIcon, { backgroundColor: 'rgba(255, 215, 0, 0.15)' }]}>
+              <Ionicons name="cart" size={32} color="#DAA520" />
+            </View>
+            <View style={styles.menuTextContainer}>
+              <Text style={styles.menuTitle}>Extras & Subscriptions</Text>
+              <Text style={styles.menuDescription}>Coins, eras, and galactic deals</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={24} color="#666" />
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </SafeAreaView>
