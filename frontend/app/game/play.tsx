@@ -186,9 +186,10 @@ export default function GamePlay() {
   };
 
   const handleSendAction = async (forceAction: boolean = false, overrideAction?: string, overrideSkill?: string | null) => {
-    const action = overrideAction || inputText.trim();
+    const rawAction = overrideAction !== undefined ? overrideAction : inputText.trim();
+    const action = rawAction || 'Continue';  // Empty/blank = Continue
     const skill = overrideSkill !== undefined ? overrideSkill : (selectedSkill || undefined);
-    if (!action || !currentSession) return;
+    if (!currentSession) return;
     
     if (!overrideAction) setInputText('');
     setIsSending(true);
@@ -683,10 +684,10 @@ export default function GamePlay() {
               style={[
                 styles.sendButton,
                 { backgroundColor: envTheme.primary },
-                (!inputText.trim() || isSending) && styles.sendButtonDisabled
+                isSending && styles.sendButtonDisabled
               ]}
-              onPress={handleSendAction}
-              disabled={!inputText.trim() || isSending}
+              onPress={() => handleSendAction()}
+              disabled={isSending}
             >
               {isSending ? (
                 <ActivityIndicator size="small" color="#000" />

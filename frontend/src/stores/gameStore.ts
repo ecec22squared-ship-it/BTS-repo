@@ -233,7 +233,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         method: 'POST',
         headers,
         credentials: 'include',
-        body: JSON.stringify({ action, skill, force_action: forceAction || false }),
+        body: JSON.stringify({ action: action || 'Continue', skill, force_action: forceAction || false }),
       }
     );
 
@@ -241,20 +241,22 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     const data = await response.json();
     
-    // Update current session with new history
-    set((state) => {
-      if (!state.currentSession) return state;
-      return {
-        currentSession: {
-          ...state.currentSession,
-          game_history: [
-            ...state.currentSession.game_history,
-            { role: 'player', content: action, timestamp: new Date().toISOString() },
-            { role: 'game_master', content: data.gm_response, timestamp: new Date().toISOString() },
-          ],
-        },
-      };
-    });
+    // Only update session history if we got an actual GM response (not a warning)
+    if (data.gm_response && !data.warning) {
+      set((state) => {
+        if (!state.currentSession) return state;
+        return {
+          currentSession: {
+            ...state.currentSession,
+            game_history: [
+              ...state.currentSession.game_history,
+              { role: 'player', content: action || 'Continue', timestamp: new Date().toISOString() },
+              { role: 'game_master', content: data.gm_response, timestamp: new Date().toISOString() },
+            ],
+          },
+        };
+      });
+    }
 
     return data;
   },
