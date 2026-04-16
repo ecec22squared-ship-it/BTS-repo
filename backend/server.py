@@ -2335,12 +2335,215 @@ ARTISTIC DIRECTION: Hyper-detailed environment art, cinematic lighting, volumetr
         raise HTTPException(status_code=500, detail=f"Failed to generate scene: {str(e)}")
 
 # ============================================================================
+# Stripe Payment Integration
+# ============================================================================
+
+from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionResponse, CheckoutStatusResponse, CheckoutSessionRequest
+
+STRIPE_API_KEY = os.getenv('STRIPE_API_KEY')
+
+# Server-side package definitions (never trust frontend amounts)
+COIN_PACKAGES = {
+    "c1": {"coins": 100, "bonus": 0, "price": 0.99, "label": "Starter"},
+    "c2": {"coins": 300, "bonus": 50, "price": 2.49, "label": "Adventurer"},
+    "c3": {"coins": 750, "bonus": 150, "price": 4.99, "label": "Explorer"},
+    "c4": {"coins": 2000, "bonus": 500, "price": 9.99, "label": "Galactic"},
+}
+
+SUB_PACKAGES = {
+    "s1": {"tier": 1, "name": "Basic", "price": 2.99, "coins": 300, "bonus": 0, "eras": []},
+    "s2": {"tier": 2, "name": "Republic", "price": 5.99, "coins": 500, "bonus": 100, "eras": ["New Republic Era"]},
+    "s3": {"tier": 3, "name": "Sith", "price": 9.99, "coins": 800, "bonus": 200, "eras": ["New Republic Era", "Sith Era"]},
+    "s4": {"tier": 4, "name": "Mandalorian", "price": 14.99, "coins": 1200, "bonus": 400, "eras": ["New Republic Era", "Sith Era", "Mandalorian Era"]},
+}
+
+@api_router.post("/payments/checkout")
+async def create_checkout(request: Request):
+    """Create a Stripe checkout session for coin or subscription purchase"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    body = await request.json()
+    package_id = body.get("package_id")
+    package_type = body.get("package_type", "coins")  # "coins" or "subscription"
+    origin_url = body.get("origin_url", "")
+
+    if not origin_url:
+        raise HTTPException(status_code=400, detail="origin_url is required")
+
+    # Determine amount and metadata from server-side packages
+    if package_type == "coins":
+        pkg = COIN_PACKAGES.get(package_id)
+        if not pkg:
+            raise HTTPException(status_code=400, detail="Invalid coin package")
+        amount = pkg["price"]
+        metadata = {
+            "user_id": user.user_id,
+            "package_type": "coins",
+            "package_id": package_id,
+            "coins": str(pkg["coins"]),
+            "bonus": str(pkg["bonus"]),
+        }
+    elif package_type == "subscription":
+        sub = SUB_PACKAGES.get(package_id)
+        if not sub:
+            raise HTTPException(status_code=400, detail="Invalid subscription package")
+        amount = sub["price"]
+        metadata = {
+            "user_id": user.user_id,
+            "package_type": "subscription",
+            "package_id": package_id,
+            "tier": str(sub["tier"]),
+            "coins": str(sub["coins"]),
+            "bonus": str(sub["bonus"]),
+        }
+    else:
+        raise HTTPException(status_code=400, detail="Invalid package_type")
+
+    success_url = f"{origin_url}/store?session_id={{CHECKOUT_SESSION_ID}}"
+    cancel_url = f"{origin_url}/store"
+
+    host_url = str(request.base_url)
+    webhook_url = f"{host_url}api/webhook/stripe"
+
+    try:
+        stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
+        checkout_request = CheckoutSessionRequest(
+            amount=float(amount),
+            currency="usd",
+            success_url=success_url,
+            cancel_url=cancel_url,
+            metadata=metadata,
+        )
+        session_response: CheckoutSessionResponse = await stripe_checkout.create_checkout_session(checkout_request)
+
+        # Create payment transaction record
+        await db.payment_transactions.insert_one({
+            "session_id": session_response.session_id,
+            "user_id": user.user_id,
+            "package_type": package_type,
+            "package_id": package_id,
+            "amount": amount,
+            "currency": "usd",
+            "metadata": metadata,
+            "payment_status": "initiated",
+            "created_at": datetime.now(timezone.utc),
+        })
+
+        return {"url": session_response.url, "session_id": session_response.session_id}
+
+    except Exception as e:
+        logger.error(f"Stripe checkout error: {e}")
+        raise HTTPException(status_code=500, detail=f"Payment error: {str(e)}")
+
+@api_router.get("/payments/status/{checkout_session_id}")
+async def get_payment_status(checkout_session_id: str, request: Request):
+    """Check payment status and fulfill if paid"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    # Check if already processed
+    tx = await db.payment_transactions.find_one({"session_id": checkout_session_id}, {"_id": 0})
+    if tx and tx.get("payment_status") == "paid":
+        user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
+        return {"status": "complete", "payment_status": "paid", "coins": user_doc.get("coins", 0)}
+
+    host_url = str(request.base_url)
+    webhook_url = f"{host_url}api/webhook/stripe"
+
+    try:
+        stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
+        status: CheckoutStatusResponse = await stripe_checkout.get_checkout_status(checkout_session_id)
+
+        if status.payment_status == "paid":
+            # Prevent double-processing
+            existing = await db.payment_transactions.find_one({"session_id": checkout_session_id, "payment_status": "paid"})
+            if not existing:
+                # Fulfill the purchase
+                metadata = status.metadata
+                pkg_type = metadata.get("package_type", "coins")
+                coins_to_add = int(metadata.get("coins", "0")) + int(metadata.get("bonus", "0"))
+
+                update_ops: Dict[str, Any] = {"$inc": {"coins": coins_to_add}}
+
+                if pkg_type == "subscription":
+                    tier = int(metadata.get("tier", "0"))
+                    eras = ["Order 66 - Fall of the Republic"]
+                    sub = SUB_PACKAGES.get(metadata.get("package_id", ""))
+                    if sub:
+                        eras.extend(sub.get("eras", []))
+                    update_ops["$set"] = {"subscription_tier": tier, "unlocked_eras": eras}
+
+                await db.users.update_one({"user_id": user.user_id}, update_ops)
+
+                # Update transaction
+                await db.payment_transactions.update_one(
+                    {"session_id": checkout_session_id},
+                    {"$set": {"payment_status": "paid", "updated_at": datetime.now(timezone.utc)}}
+                )
+
+        elif status.status == "expired":
+            await db.payment_transactions.update_one(
+                {"session_id": checkout_session_id},
+                {"$set": {"payment_status": "expired", "updated_at": datetime.now(timezone.utc)}}
+            )
+
+        user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
+        return {
+            "status": status.status,
+            "payment_status": status.payment_status,
+            "coins": user_doc.get("coins", 0) if user_doc else 0,
+        }
+
+    except Exception as e:
+        logger.error(f"Payment status error: {e}")
+        raise HTTPException(status_code=500, detail=f"Payment status error: {str(e)}")
+
+@api_router.post("/webhook/stripe")
+async def stripe_webhook(request: Request):
+    """Handle Stripe webhooks"""
+    try:
+        body = await request.body()
+        signature = request.headers.get("Stripe-Signature", "")
+        host_url = str(request.base_url)
+        webhook_url = f"{host_url}api/webhook/stripe"
+        stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
+        webhook_response = await stripe_checkout.handle_webhook(body, signature)
+
+        if webhook_response.payment_status == "paid":
+            tx = await db.payment_transactions.find_one({"session_id": webhook_response.session_id})
+            if tx and tx.get("payment_status") != "paid":
+                metadata = webhook_response.metadata
+                coins_to_add = int(metadata.get("coins", "0")) + int(metadata.get("bonus", "0"))
+                user_id = metadata.get("user_id", "")
+                update_ops: Dict[str, Any] = {"$inc": {"coins": coins_to_add}}
+                if metadata.get("package_type") == "subscription":
+                    tier = int(metadata.get("tier", "0"))
+                    eras = ["Order 66 - Fall of the Republic"]
+                    sub = SUB_PACKAGES.get(metadata.get("package_id", ""))
+                    if sub:
+                        eras.extend(sub.get("eras", []))
+                    update_ops["$set"] = {"subscription_tier": tier, "unlocked_eras": eras}
+                await db.users.update_one({"user_id": user_id}, update_ops)
+                await db.payment_transactions.update_one(
+                    {"session_id": webhook_response.session_id},
+                    {"$set": {"payment_status": "paid", "updated_at": datetime.now(timezone.utc)}}
+                )
+
+        return {"status": "ok"}
+    except Exception as e:
+        logger.error(f"Webhook error: {e}")
+        return {"status": "error", "detail": str(e)}
+
+# ============================================================================
 # Root endpoint
 # ============================================================================
 
 @api_router.get("/")
 async def root():
-    return {"message": "Star Wars: Edge of the Empire RPG API", "version": "2.0.0"}
+    return {"message": "Beyond the Stars: Star Wars Text RPG API", "version": "3.0.0"}
 
 app.include_router(api_router)
 

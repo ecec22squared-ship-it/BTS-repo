@@ -124,16 +124,19 @@ export default function Index() {
           <View style={styles.loginContainer}>
             {/* Logo/Title */}
             <View style={styles.logoContainer}>
-              <Ionicons name="planet" size={80} color="#FFD700" />
-              <Text style={styles.title}>EDGE OF THE EMPIRE</Text>
-              <Text style={styles.subtitle}>Star Wars Roleplaying Game</Text>
+              <Image
+                source={{ uri: 'https://images.unsplash.com/photo-1707057539184-27e90364e30a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNDR8MHwxfHNlYXJjaHwxfHxnYWxheHklMjBzcGlyYWwlMjBzdGFycyUyMGNvc21vc3xlbnwwfHx8fDE3NzYzMzkwMjl8MA&ixlib=rb-4.1.0&q=85' }}
+                style={styles.galaxyIcon}
+              />
+              <Text style={styles.title}>BEYOND THE STARS</Text>
+              <Text style={styles.subtitle}>A Star Wars Text RPG Powered by AI</Text>
             </View>
 
             {/* Description */}
             <View style={styles.descriptionContainer}>
               <Text style={styles.description}>
-                Explore the galaxy's edge as a smuggler, bounty hunter, or colonist. 
-                Experience immersive AI-driven storytelling with the Edge of the Empire dice system.
+                Live the Star Wars universe through immersive AI storytelling. 
+                Create your character, shape the galaxy, and forge your legend at the edge of the stars.
               </Text>
             </View>
 
@@ -176,8 +179,11 @@ export default function Index() {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <Ionicons name="planet" size={32} color="#FFD700" />
-            <Text style={styles.headerTitle}>Edge of the Empire</Text>
+            <Image
+              source={{ uri: 'https://images.unsplash.com/photo-1707057539184-27e90364e30a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNDR8MHwxfHNlYXJjaHwxfHxnYWxheHklMjBzcGlyYWwlMjBzdGFycyUyMGNvc21vc3xlbnwwfHx8fDE3NzYzMzkwMjl8MA&ixlib=rb-4.1.0&q=85' }}
+              style={styles.headerIcon}
+            />
+            <Text style={styles.headerTitle}>Beyond the Stars</Text>
           </View>
           <TouchableOpacity onPress={logout} style={styles.logoutButton}>
             <Ionicons name="log-out-outline" size={24} color="#F44336" />
@@ -304,6 +310,19 @@ const styles = StyleSheet.create({
   logoContainer: {
     alignItems: 'center',
     marginBottom: 32,
+  },
+  galaxyIcon: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 2,
+    borderColor: '#FFD700',
+  },
+  headerIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 8,
   },
   title: {
     color: '#FFD700',
