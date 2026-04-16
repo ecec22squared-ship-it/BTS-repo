@@ -18,6 +18,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useGameStore } from '../../src/stores/gameStore';
 import { DiceDisplay } from '../../src/components/DiceDisplay';
 import { HoloTableGalaxy } from '../../src/components/HoloTableGalaxy';
@@ -85,6 +86,7 @@ export default function GamePlay() {
   const [pendingSkill, setPendingSkill] = useState<string | null>(null);
   const [advancementNotif, setAdvancementNotif] = useState<any>(null);
   const [audioStarted, setAudioStarted] = useState(false);
+  const [coins, setCoins] = useState<number>(100);
 
   const scrollViewRef = useRef<ScrollView>(null);
   const prevEnvRef = useRef<string>('urban');
@@ -119,6 +121,18 @@ export default function GamePlay() {
   const initGame = async () => {
     setIsLoading(true);
     try {
+      // Fetch coin balance
+      const token = await AsyncStorage.getItem('session_token');
+      const BACKEND = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+      try {
+        const coinRes = await fetch(`${BACKEND}/api/auth/coins`, {
+          headers: { 'Authorization': `Bearer ${token}` }, credentials: 'include'
+        });
+        if (coinRes.ok) {
+          const coinData = await coinRes.json();
+          setCoins(coinData.coins ?? 100);
+        }
+      } catch (_e) { /* coin fetch failed, use default */ }
       if (sessionId) {
         await loadGameSession(sessionId as string);
       }
@@ -196,6 +210,14 @@ export default function GamePlay() {
     try {
       const result = await sendAction(currentSession.session_id, action, skill, forceAction);
 
+      // Handle out-of-coins
+      if (result.warning && result.warning_severity === 'out_of_coins') {
+        setPendingWarning(result);
+        setIsSending(false);
+        if (!overrideAction) setMessages(prev => prev.slice(0, -1));
+        return;
+      }
+
       // Handle warning response
       if (result.warning && result.requires_confirmation) {
         playWarningKlaxon();
@@ -224,6 +246,9 @@ export default function GamePlay() {
 
       // Play dice roll sound if dice were rolled
       if (result.dice_result) playDiceRollSound();
+
+      // Update coin balance from response
+      if (result.coins !== undefined) setCoins(result.coins);
 
       if (result.environment_theme) {
         setEnvTheme(result.environment_theme);
@@ -475,6 +500,10 @@ export default function GamePlay() {
                 <Text style={styles.charName}>{character.name}</Text>
               </View>
               <View style={styles.statusBars}>
+                <View style={styles.coinCounter}>
+                  <Ionicons name="ellipse" size={12} color="#FFD700" />
+                  <Text style={styles.coinText}>{coins}</Text>
+                </View>
                 <View style={styles.hpBar}>
                   <View style={[styles.hpFill, {
                     width: `${Math.max(0, (1 - character.health.wounds / character.health.wound_threshold) * 100)}%`,
@@ -726,7 +755,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center', marginRight: 8, borderWidth: 1,
   },
   charName: { color: '#fff', fontSize: 13, fontWeight: '600' },
-  statusBars: { flexDirection: 'row', gap: 8 },
+  statusBars: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  coinCounter: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: 'rgba(255,215,0,0.15)', borderRadius: 10,
+    paddingHorizontal: 8, paddingVertical: 3, marginRight: 4,
+  },
+  coinText: {
+    color: '#FFD700', fontSize: 12, fontWeight: 'bold', marginLeft: 4,
+  },
   hpBar: {
     width: 60, height: 16, borderRadius: 8,
     backgroundColor: 'rgba(255,255,255,0.15)',

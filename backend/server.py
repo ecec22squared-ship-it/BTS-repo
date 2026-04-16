@@ -53,6 +53,7 @@ class UserBase(BaseModel):
     email: str
     name: str
     picture: Optional[str] = None
+    coins: int = 100  # Starting balance for new players
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class UserSession(BaseModel):
@@ -151,7 +152,7 @@ class GameSession(BaseModel):
     story_context: List[str] = Field(default_factory=list)
     current_location: str = "Nar Shaddaa - The Smuggler's Moon"
     environment_type: str = "urban"
-    era: str = "Galactic Civil War"
+    era: str = "Order 66 - Fall of the Republic"
     scene_image_base64: Optional[str] = None
     npcs: List[Dict[str, Any]] = Field(default_factory=list)
     combat_state: CombatState = Field(default_factory=CombatState)
@@ -1313,7 +1314,7 @@ async def create_session(request: Request, response: Response):
         await db.users.update_one({"user_id": user_id}, {"$set": {"name": user_data["name"], "picture": user_data.get("picture")}})
     else:
         user_id = f"user_{uuid.uuid4().hex[:12]}"
-        await db.users.insert_one({"user_id": user_id, "email": user_data["email"], "name": user_data["name"], "picture": user_data.get("picture"), "created_at": datetime.now(timezone.utc)})
+        await db.users.insert_one({"user_id": user_id, "email": user_data["email"], "name": user_data["name"], "picture": user_data.get("picture"), "coins": 100, "created_at": datetime.now(timezone.utc)})
     session_token = user_data.get("session_token", f"sess_{uuid.uuid4().hex}")
     expires_at = datetime.now(timezone.utc) + timedelta(days=7)
     await db.user_sessions.delete_many({"user_id": user_id})
@@ -1327,7 +1328,22 @@ async def get_me(request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    return user.model_dump()
+    # Ensure coins field exists for older users
+    user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
+    if "coins" not in user_doc:
+        await db.users.update_one({"user_id": user.user_id}, {"$set": {"coins": 100}})
+        user_doc["coins"] = 100
+    return user_doc
+
+@api_router.get("/auth/coins")
+async def get_coins(request: Request):
+    """Get current coin balance"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
+    coins = user_doc.get("coins", 100) if user_doc else 0
+    return {"coins": coins}
 
 @api_router.post("/auth/logout")
 async def logout(request: Request, response: Response):
@@ -1830,12 +1846,35 @@ async def player_action(session_id: str, action: PlayerAction, request: Request)
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+
+    # === COIN CHECK & DEDUCTION ===
+    user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
+    coins = user_doc.get("coins", 0) if user_doc else 0
+    if coins <= 0:
+        return {
+            "warning": True,
+            "warning_message": "You have run out of coins. Each response costs 1 coin. Purchase more coins to continue your adventure.",
+            "warning_severity": "out_of_coins",
+            "requires_confirmation": False,
+            "gm_response": None,
+            "dice_result": None,
+            "coins": 0,
+        }
+
+    # Handle blank input as "Continue"
+    if not action.action or not action.action.strip():
+        action.action = "Continue"
+
     session = await db.game_sessions.find_one({"session_id": session_id, "user_id": user.user_id}, {"_id": 0})
     if not session:
         raise HTTPException(status_code=404, detail="Game session not found")
     character = await db.characters.find_one({"character_id": session["character_id"]}, {"_id": 0})
     if not character:
         raise HTTPException(status_code=404, detail="Character not found")
+
+    # Deduct 1 coin
+    await db.users.update_one({"user_id": user.user_id}, {"$inc": {"coins": -1}})
+    new_coins = coins - 1
 
     # Auto-detect skill for contested interaction
     skill_name = action.skill or detect_skill_from_action(action.action)
@@ -2122,6 +2161,7 @@ Respond as the Game Master. Make the player feel like they're THERE."""
             "environment_theme": ENVIRONMENT_THEMES.get(current_env, ENVIRONMENT_THEMES["urban"]),
             "skill_used": skill_name,
             "advancement": advancement_info,
+            "coins": new_coins,
         }
         return response_data
 
@@ -2143,8 +2183,39 @@ async def start_game_session(session_id: str, request: Request):
 
     equipment_list = ", ".join([e["name"] for e in character.get("equipment", [])]) if character.get("equipment") else "basic gear"
 
+    # Get scenario context if available
+    scenario_context = ""
+    if session.get("scenario_id"):
+        scenario_context = "Use the chosen scenario as the adventure hook."
+
+    # Era-specific context
+    era = session.get("era", "Order 66 - Fall of the Republic")
+    era_context = ""
+    if "Order 66" in era:
+        era_context = """ERA: ORDER 66 — THE FALL OF THE REPUBLIC
+The galaxy is being torn apart RIGHT NOW. Chancellor Palpatine has just issued Order 66.
+- Clone troopers across the galaxy are turning on their Jedi generals — blaster bolts from soldiers who were allies moments ago
+- The Jedi Temple on Coruscant burns, pillars of smoke visible from orbit
+- Republic military channels are flooded with confusion — conflicting orders, panicked communications
+- The newly declared GALACTIC EMPIRE is seizing control — Star Destroyers are repositioning, blockades forming
+- Civilians are terrified — markets closing, streets emptying, rumors spreading like wildfire
+- Former Separatist worlds don't know if the war is over or just beginning
+- Surviving Jedi are being hunted, their comm signals becoming beacons for death squads
+This is happening TODAY. The character is caught in the middle of it. Open with the immediate chaos and danger."""
+
+    # Fetch global events for this location to weave in other players' impact
+    global_events = await get_nearby_global_events(
+        session["current_location"], era, user.user_id, limit=3
+    )
+    global_context = ""
+    if global_events:
+        evt_parts = [f"- {e['actor_description']} caused a {e['event_type']}: {e['description'][:150]}" for e in global_events]
+        global_context = f"\nOTHER EVENTS AT THIS LOCATION (weave naturally into background):\n" + "\n".join(evt_parts)
+
     system_prompt = f"""You are the Game Master for a Star Wars: Edge of the Empire tabletop RPG.
-Create an immersive opening scene for a new adventure.
+Create an immersive opening scene for a new adventure. Make the player feel like they're PHYSICALLY THERE.
+
+{era_context}
 
 CHARACTER:
 - Name: {character['name']}
@@ -2154,15 +2225,18 @@ CHARACTER:
 - Backstory: {character.get('backstory', 'A traveler seeking fortune at the galaxy edge.')}
 
 LOCATION: {session['current_location']}
+{scenario_context}
+{global_context}
 
-Create a dramatic opening scene that:
-1. Describes the location with vivid sensory details (sounds, smells, lights, atmosphere)
-2. Establishes the environment (what kind of place this is)
-3. References or hints at the character's equipment or career naturally
-4. Introduces an immediate situation or hook that demands action
-5. Ends with a clear prompt for the player
+IMMERSION RULES:
+1. Engage at least 3 senses in the opening — sounds, smells, physical sensations
+2. Show, don't tell — make the reader feel the ground shake, hear the distant blaster fire
+3. The world is ALIVE and in chaos (if Order 66 era) — NPCs are reacting, ships are moving, alarms are sounding
+4. Reference the character's equipment and career naturally
+5. End with a visceral, present-tense moment that demands immediate response
+6. NEVER reference dice, game mechanics, or break the fourth wall
 
-Keep it to 3-4 paragraphs. Make it feel like Star Wars! NEVER reference dice or game mechanics."""
+Keep it to 3-4 rich paragraphs."""
 
     try:
         chat = LlmChat(
