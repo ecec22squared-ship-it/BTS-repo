@@ -18,7 +18,7 @@ const SOCIAL_LINKS = [
   { name: 'Instagram', icon: 'logo-instagram', color: '#E1306C', url: 'https://instagram.com' },
   { name: 'TikTok', icon: 'logo-tiktok', color: '#000000', url: 'https://tiktok.com' },
   { name: 'YouTube', icon: 'logo-youtube', color: '#FF0000', url: 'https://youtube.com' },
-  { name: 'Discord', icon: 'logo-discord', color: '#5865F2', url: 'https://discord.gg' },
+  { name: 'Discord', icon: 'logo-discord', color: '#5865F2', url: 'https://discord.gg/cmV4PMvW2' },
   { name: 'Reddit', icon: 'logo-reddit', color: '#FF4500', url: 'https://reddit.com' },
 ];
 
@@ -197,6 +197,24 @@ export default function SocialScreen() {
             All shared content includes the "Beyond the Stars" watermark
           </Text>
         </View>
+
+        {/* Support Link */}
+        <TouchableOpacity
+          style={styles.supportCard}
+          onPress={() => Linking.openURL('https://discord.gg/cmV4PMvW2')}
+          activeOpacity={0.8}
+        >
+          <View style={[styles.supportIcon, { backgroundColor: 'rgba(88,101,242,0.18)' }]}>
+            <Ionicons name="logo-discord" size={22} color="#5865F2" />
+          </View>
+          <View style={styles.supportInfo}>
+            <Text style={styles.supportTitle}>Need Help? Get Support</Text>
+            <Text style={styles.supportDesc}>
+              Join our Discord community for support, tips, and fellow travelers
+            </Text>
+          </View>
+          <Ionicons name="open-outline" size={20} color="#5865F2" />
+        </TouchableOpacity>
       </ScrollView>
 
       {/* Share Dialog Overlay */}
@@ -324,6 +342,21 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   watermarkText: { color: '#555', fontSize: 10, marginLeft: 6, fontStyle: 'italic' },
+
+  // Support card
+  supportCard: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: 'rgba(88,101,242,0.08)', borderRadius: 12, padding: 14,
+    marginTop: 4, marginBottom: 20,
+    borderWidth: 1, borderColor: 'rgba(88,101,242,0.3)',
+  },
+  supportIcon: {
+    width: 44, height: 44, borderRadius: 10, justifyContent: 'center', alignItems: 'center',
+    marginRight: 12,
+  },
+  supportInfo: { flex: 1 },
+  supportTitle: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  supportDesc: { color: '#9AA3D9', fontSize: 11, marginTop: 2, lineHeight: 15 },
 
   // Dialog overlay
   dialogOverlay: {

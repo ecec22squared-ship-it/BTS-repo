@@ -219,7 +219,24 @@ export default function GamePlay() {
         return;
       }
 
-      // Handle warning response
+      // Handle AI limit / error (non-blocking, just show message in chat)
+      if (result.warning && (result.warning_severity === 'ai_limit' || result.warning_severity === 'error')) {
+        const errorMsg: GameMessage & { dice_line?: string } = {
+          role: 'game_master',
+          content: result.warning_message || 'A disturbance in the Force has interrupted your adventure. Please try again.',
+          timestamp: new Date().toISOString()
+        };
+        if (!overrideAction) {
+          setMessages(prev => [...prev, errorMsg]);
+        } else {
+          setMessages(prev => [...prev, playerMessage, errorMsg]);
+        }
+        if (result.coins !== undefined) setCoins(result.coins);
+        setIsSending(false);
+        return;
+      }
+
+      // Handle capability warning response
       if (result.warning && result.requires_confirmation) {
         playWarningKlaxon();
         setPendingWarning(result);
@@ -268,7 +285,17 @@ export default function GamePlay() {
       setSelectedSkill(null);
     } catch (error) {
       console.error('Send action error:', error);
-      if (!overrideAction) setMessages(prev => prev.slice(0, -1));
+      // Show error in chat instead of silently removing the message
+      const errorMsg: GameMessage & { dice_line?: string } = {
+        role: 'game_master',
+        content: 'A disturbance in the Force has interrupted your adventure. Please try again.',
+        timestamp: new Date().toISOString()
+      };
+      if (overrideAction) {
+        setMessages(prev => [...prev, playerMessage, errorMsg]);
+      } else {
+        setMessages(prev => [...prev, errorMsg]);
+      }
     } finally {
       setIsSending(false);
     }

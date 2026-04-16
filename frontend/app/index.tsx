@@ -14,6 +14,8 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Linking from 'expo-linking';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { runOnJS } from 'react-native-reanimated';
 import { useAuthStore } from '../src/stores/authStore';
 import { useGameStore } from '../src/stores/gameStore';
 
@@ -172,23 +174,41 @@ export default function Index() {
   }
 
   // Authenticated - Main Menu
+  const openSocial = () => router.push('/social');
+  const swipeRightGesture = Gesture.Pan()
+    .activeOffsetX([30, 9999])
+    .failOffsetY([-20, 20])
+    .onEnd((e) => {
+      if (e.translationX > 80 && Math.abs(e.translationY) < 120) {
+        runOnJS(openSocial)();
+      }
+    });
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <Image
-              source={{ uri: 'https://images.unsplash.com/photo-1707057539184-27e90364e30a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNDR8MHwxfHNlYXJjaHwxfHxnYWxheHklMjBzcGlyYWwlMjBzdGFycyUyMGNvc21vc3xlbnwwfHx8fDE3NzYzMzkwMjl8MA&ixlib=rb-4.1.0&q=85' }}
-              style={styles.headerIcon}
-            />
-            <Text style={styles.headerTitle}>Beyond the Stars</Text>
+      <GestureDetector gesture={swipeRightGesture}>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.headerLeft}>
+              <Image
+                source={{ uri: 'https://images.unsplash.com/photo-1707057539184-27e90364e30a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNDR8MHwxfHNlYXJjaHwxfHxnYWxheHklMjBzcGlyYWwlMjBzdGFycyUyMGNvc21vc3xlbnwwfHx8fDE3NzYzMzkwMjl8MA&ixlib=rb-4.1.0&q=85' }}
+                style={styles.headerIcon}
+              />
+              <Text style={styles.headerTitle}>Beyond the Stars</Text>
+            </View>
+            <TouchableOpacity onPress={logout} style={styles.logoutButton}>
+              <Ionicons name="log-out-outline" size={24} color="#F44336" />
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity onPress={logout} style={styles.logoutButton}>
-            <Ionicons name="log-out-outline" size={24} color="#F44336" />
+
+          {/* Swipe Hint */}
+          <TouchableOpacity style={styles.swipeHint} onPress={openSocial} activeOpacity={0.7}>
+            <Ionicons name="chevron-forward" size={14} color="#5865F2" />
+            <Text style={styles.swipeHintText}>Swipe right for Social Media</Text>
+            <Ionicons name="share-social-outline" size={14} color="#5865F2" />
           </TouchableOpacity>
-        </View>
 
         {/* User Info */}
         <View style={styles.userInfo}>
@@ -292,7 +312,8 @@ export default function Index() {
             <Ionicons name="chevron-forward" size={24} color="#666" />
           </TouchableOpacity>
         </View>
-      </ScrollView>
+        </ScrollView>
+      </GestureDetector>
     </SafeAreaView>
   );
 }
@@ -411,6 +432,26 @@ const styles = StyleSheet.create({
   },
   logoutButton: {
     padding: 8,
+  },
+  swipeHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: 'rgba(88,101,242,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(88,101,242,0.35)',
+    marginBottom: 14,
+    gap: 6,
+  },
+  swipeHintText: {
+    color: '#9AA3D9',
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
   userInfo: {
     flexDirection: 'row',

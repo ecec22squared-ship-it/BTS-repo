@@ -171,7 +171,7 @@ export default function StoreScreen() {
             <Text style={styles.sectionTitle}>Deals</Text>
           </View>
           <View style={styles.dealsRow}>
-            <TouchableOpacity style={styles.dealCard} onPress={() => Linking.openURL('https://discord.gg')}>
+            <TouchableOpacity style={styles.dealCard} onPress={() => Linking.openURL('https://discord.gg/cmV4PMvW2')}>
               <Ionicons name="logo-discord" size={24} color="#5865F2" />
               <Text style={styles.dealLabel}>Discord</Text>
             </TouchableOpacity>

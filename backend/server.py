@@ -2165,7 +2165,34 @@ Respond as the Game Master. Make the player feel like they're THERE."""
 
     except Exception as e:
         logger.error(f"AI Game Master error: {e}")
-        raise HTTPException(status_code=500, detail=f"AI Game Master error: {str(e)}")
+        error_str = str(e).lower()
+        
+        # Refund the coin since the action failed
+        await db.users.update_one({"user_id": user.user_id}, {"$inc": {"coins": 1}})
+        refunded_coins = new_coins + 1
+        
+        # Check for budget/rate limit errors and return gracefully
+        if "budget" in error_str or "rate" in error_str or "exceeded" in error_str or "quota" in error_str:
+            return {
+                "warning": True,
+                "warning_message": "The Game Master's connection to the Force has been temporarily disrupted. The galaxy needs a moment to recover. Please try again shortly.",
+                "warning_severity": "ai_limit",
+                "requires_confirmation": False,
+                "gm_response": None,
+                "dice_result": None,
+                "coins": refunded_coins,
+            }
+        
+        # For other errors, still return gracefully
+        return {
+            "warning": True,
+            "warning_message": "A disturbance in the Force has interrupted your adventure. Please try again.",
+            "warning_severity": "error",
+            "requires_confirmation": False,
+            "gm_response": None,
+            "dice_result": None,
+            "coins": refunded_coins,
+        }
 
 @api_router.post("/game/sessions/{session_id}/start")
 async def start_game_session(session_id: str, request: Request):
