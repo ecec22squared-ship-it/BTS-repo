@@ -89,15 +89,8 @@ export default function CharacterDetail() {
 
   const handleStartGame = async () => {
     if (!character) return;
-    setIsStarting(true);
-    try {
-      const session = await createGameSession(character.character_id);
-      router.push(`/game/play?sessionId=${session.session_id}&characterId=${character.character_id}`);
-    } catch (error) {
-      Alert.alert('Error', 'Failed to start game session');
-    } finally {
-      setIsStarting(false);
-    }
+    // Route to scenario selection instead of direct start
+    router.push(`/game/scenarios?characterId=${character.character_id}`);
   };
 
   if (!character) {

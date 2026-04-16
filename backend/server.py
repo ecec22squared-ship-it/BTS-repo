@@ -147,9 +147,11 @@ class GameSession(BaseModel):
     session_id: str = Field(default_factory=lambda: f"game_{uuid.uuid4().hex[:12]}")
     user_id: str
     character_id: str
+    scenario_id: Optional[str] = None
     story_context: List[str] = Field(default_factory=list)
     current_location: str = "Nar Shaddaa - The Smuggler's Moon"
     environment_type: str = "urban"
+    era: str = "Galactic Civil War"
     scene_image_base64: Optional[str] = None
     npcs: List[Dict[str, Any]] = Field(default_factory=list)
     combat_state: CombatState = Field(default_factory=CombatState)
@@ -185,6 +187,178 @@ class PlayerAction(BaseModel):
     action: str
     skill: Optional[str] = None
     force_action: bool = False  # True = player confirmed after warning
+
+# ============================================================================
+# Player Profile & Global Events Models
+# ============================================================================
+
+SCENARIO_TYPES = ["combat", "intrigue", "exploration", "social", "heist", "survival", "mystery"]
+
+class PlayerProfile(BaseModel):
+    """Hidden profile tracking player preferences — never shown to user"""
+    user_id: str
+    scenario_preferences: Dict[str, float] = Field(default_factory=lambda: {t: 1.0 for t in SCENARIO_TYPES})
+    total_responses: int = 0
+    avg_response_length: float = 0.0
+    scenarios_chosen: List[Dict[str, Any]] = Field(default_factory=list)  # [{type, chosen_at}]
+    response_quality: Dict[str, List[float]] = Field(default_factory=lambda: {t: [] for t in SCENARIO_TYPES})
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class GlobalEvent(BaseModel):
+    """Shared galaxy event visible to other players in same location/era"""
+    event_id: str = Field(default_factory=lambda: f"evt_{uuid.uuid4().hex[:12]}")
+    location: str
+    era: str
+    event_type: str  # explosion, battle, arrest, escape, discovery, etc.
+    description: str  # What happened (anonymous)
+    actor_species: str  # Species of the character who caused it
+    actor_career: str  # Career of the character
+    actor_description: str  # Brief anonymous description for NPCification
+    impact: str  # How this affects the environment
+    timestamp_game: str  # In-game time reference
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    source_user_id: str  # For filtering out own events
+    source_session_id: str
+
+# ============================================================================
+# Player Profile Engine
+# ============================================================================
+
+async def get_or_create_player_profile(user_id: str) -> dict:
+    profile = await db.player_profiles.find_one({"user_id": user_id}, {"_id": 0})
+    if not profile:
+        profile = PlayerProfile(user_id=user_id).model_dump()
+        await db.player_profiles.insert_one(profile)
+    return profile
+
+async def update_player_preference(user_id: str, scenario_type: str, chosen: bool):
+    """Update preference when player chooses a scenario"""
+    profile = await get_or_create_player_profile(user_id)
+    prefs = profile.get("scenario_preferences", {t: 1.0 for t in SCENARIO_TYPES})
+    if chosen:
+        prefs[scenario_type] = min(3.0, prefs.get(scenario_type, 1.0) + 0.3)
+    scenarios = profile.get("scenarios_chosen", [])
+    scenarios.append({"type": scenario_type, "chosen_at": datetime.now(timezone.utc).isoformat()})
+    await db.player_profiles.update_one(
+        {"user_id": user_id},
+        {"$set": {"scenario_preferences": prefs, "scenarios_chosen": scenarios[-50:], "updated_at": datetime.now(timezone.utc)}}
+    )
+
+async def analyze_response_quality(user_id: str, action_text: str, scenario_type: str):
+    """Analyze player response to adapt preferences. Longer/detailed = positive."""
+    profile = await get_or_create_player_profile(user_id)
+    word_count = len(action_text.split())
+    # Score: 0-1 based on engagement. Short replies (<5 words) = low, detailed (>20) = high
+    quality = min(1.0, max(0.1, word_count / 25.0))
+
+    prefs = profile.get("scenario_preferences", {t: 1.0 for t in SCENARIO_TYPES})
+    response_quality = profile.get("response_quality", {t: [] for t in SCENARIO_TYPES})
+
+    # Keep last 10 quality scores per type
+    if scenario_type in response_quality:
+        response_quality[scenario_type].append(quality)
+        response_quality[scenario_type] = response_quality[scenario_type][-10:]
+    else:
+        response_quality[scenario_type] = [quality]
+
+    # Adjust preference based on average quality
+    avg_quality = sum(response_quality.get(scenario_type, [0.5])) / max(1, len(response_quality.get(scenario_type, [1])))
+    if avg_quality > 0.6:
+        prefs[scenario_type] = min(3.0, prefs.get(scenario_type, 1.0) + 0.05)
+    elif avg_quality < 0.3:
+        prefs[scenario_type] = max(0.2, prefs.get(scenario_type, 1.0) - 0.05)
+
+    total = profile.get("total_responses", 0) + 1
+    running_avg = profile.get("avg_response_length", 0)
+    new_avg = ((running_avg * (total - 1)) + word_count) / total
+
+    await db.player_profiles.update_one(
+        {"user_id": user_id},
+        {"$set": {
+            "scenario_preferences": prefs,
+            "response_quality": response_quality,
+            "total_responses": total,
+            "avg_response_length": new_avg,
+            "updated_at": datetime.now(timezone.utc),
+        }}
+    )
+
+def get_weighted_scenario_types(profile: dict, count: int = 7) -> List[str]:
+    """Select scenario types weighted by player preference"""
+    prefs = profile.get("scenario_preferences", {t: 1.0 for t in SCENARIO_TYPES})
+    types = list(prefs.keys())
+    weights = [prefs.get(t, 1.0) for t in types]
+    total_weight = sum(weights)
+    weights = [w / total_weight for w in weights]
+    # Weighted selection with some variety
+    selected = []
+    for _ in range(count):
+        r = random.random()
+        cumulative = 0
+        for i, w in enumerate(weights):
+            cumulative += w
+            if r <= cumulative:
+                selected.append(types[i])
+                break
+    return selected
+
+# ============================================================================
+# Global Events Engine
+# ============================================================================
+
+async def save_global_event(session: dict, character: dict, event_description: str, event_type: str, impact: str):
+    """Save a significant event to the global events collection"""
+    event = GlobalEvent(
+        location=session.get("current_location", "Unknown"),
+        era=session.get("era", "Galactic Civil War"),
+        event_type=event_type,
+        description=event_description,
+        actor_species=character.get("species", "Unknown"),
+        actor_career=character.get("career", "Unknown"),
+        actor_description=f"a {character.get('species', 'mysterious')} {character.get('career', 'traveler')}",
+        impact=impact,
+        timestamp_game=datetime.now(timezone.utc).isoformat(),
+        source_user_id=session.get("user_id", ""),
+        source_session_id=session.get("session_id", ""),
+    )
+    await db.global_events.insert_one(event.model_dump())
+
+async def get_nearby_global_events(location: str, era: str, exclude_user_id: str, limit: int = 5) -> List[dict]:
+    """Get recent global events at the same location/era from other players"""
+    events = await db.global_events.find(
+        {
+            "location": location,
+            "era": era,
+            "source_user_id": {"$ne": exclude_user_id},
+            "created_at": {"$gte": datetime.now(timezone.utc) - timedelta(hours=48)},
+        },
+        {"_id": 0, "source_user_id": 0, "source_session_id": 0}
+    ).sort("created_at", -1).to_list(limit)
+    return events
+
+async def detect_and_save_significant_event(gm_response: str, session: dict, character: dict):
+    """Detect if the GM response contains a significant event worth sharing globally"""
+    lower = gm_response.lower()
+    event_keywords = {
+        "explosion": ["explosion", "explode", "detonat", "blast", "blew up"],
+        "battle": ["battle", "firefight", "skirmish", "combat broke out", "war zone"],
+        "arrest": ["arrested", "captured", "imprisoned", "detained", "taken into custody"],
+        "escape": ["escaped", "fled", "broke free", "getaway", "evaded"],
+        "discovery": ["discovered", "found", "uncovered", "revealed", "ancient"],
+        "crash": ["crashed", "wreck", "collision", "impact", "smashed into"],
+        "murder": ["killed", "assassinated", "murdered", "slain", "dead body"],
+        "theft": ["stole", "robbed", "heist", "stolen", "burglary"],
+    }
+    for event_type, keywords in event_keywords.items():
+        if any(kw in lower for kw in keywords):
+            # Extract a brief impact description
+            sentences = gm_response.split('.')
+            relevant = [s.strip() for s in sentences if any(kw in s.lower() for kw in keywords)]
+            if relevant:
+                desc = relevant[0][:200]
+                impact = f"Witnesses reported {event_type} activity in the area."
+                await save_global_event(session, character, desc, event_type, impact)
+                break  # One event per response
 
 # ============================================================================
 # Game Data - Species, Careers, Skills, Equipment, Environments
@@ -1498,11 +1672,12 @@ def build_story_memory_prompt(session: dict) -> str:
     return "\n\n".join(memory_parts)
 
 # ============================================================================
-# Game Session & AI Game Master Endpoints
+# Scenario Generation & Game Session Endpoints
 # ============================================================================
 
-@api_router.post("/game/sessions")
-async def create_game_session(request: Request):
+@api_router.post("/game/generate-scenarios")
+async def generate_scenarios(request: Request):
+    """Generate 7 adventure scenarios tailored to the character and player preferences"""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -1511,12 +1686,106 @@ async def create_game_session(request: Request):
     character = await db.characters.find_one({"character_id": character_id, "user_id": user.user_id}, {"_id": 0})
     if not character:
         raise HTTPException(status_code=404, detail="Character not found")
-    location = random.choice(LOCATIONS)
+
+    # Get player profile for weighted scenario types
+    profile = await get_or_create_player_profile(user.user_id)
+    weighted_types = get_weighted_scenario_types(profile, 7)
+
+    prompt = f"""Generate exactly 7 unique Star Wars adventure scenarios for this character.
+Each scenario must be a different type from this list (in order): {json.dumps(weighted_types)}
+
+CHARACTER:
+- Name: {character['name']}
+- Species: {character['species']}
+- Career: {character['career']} ({character['specialization']})
+- Backstory: {character.get('backstory', 'A traveler at the galaxy edge')}
+
+Respond ONLY with a valid JSON array of 7 objects. Each object must have:
+- "title": A compelling 3-6 word title
+- "type": The scenario type from the list above (use the exact type for each position)
+- "description": A 2-3 sentence vivid hook that makes the player WANT to choose this adventure. Reference the character's career/species where relevant.
+- "location": A Star Wars location from: {json.dumps(LOCATIONS)}
+- "danger_level": 1-5 (1=low stakes, 5=extremely dangerous)
+
+Example format: [{{"title":"...", "type":"combat", "description":"...", "location":"...", "danger_level":3}}]
+Return ONLY the JSON array, no other text."""
+
+    try:
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"scenarios_{uuid.uuid4().hex[:8]}",
+            system_message="You are a Star Wars scenario designer. Respond ONLY with valid JSON arrays."
+        ).with_model("anthropic", "claude-4-sonnet-20250514")
+
+        result = await chat.send_message(UserMessage(text=prompt))
+
+        # Parse JSON from response
+        result_clean = result.strip()
+        if result_clean.startswith("```"):
+            result_clean = result_clean.split("\n", 1)[1].rsplit("```", 1)[0]
+
+        scenarios = json.loads(result_clean)
+
+        # Assign IDs
+        for i, s in enumerate(scenarios):
+            s["scenario_id"] = f"scn_{uuid.uuid4().hex[:8]}"
+            s["index"] = i
+
+        return {"scenarios": scenarios}
+
+    except json.JSONDecodeError:
+        # Fallback: generate hardcoded scenarios
+        fallback = []
+        for i, stype in enumerate(weighted_types):
+            loc = random.choice(LOCATIONS)
+            fallback.append({
+                "scenario_id": f"scn_{uuid.uuid4().hex[:8]}",
+                "index": i,
+                "title": f"{stype.title()} on {loc.split(' - ')[0]}",
+                "type": stype,
+                "description": f"A {stype} scenario awaits your {character['career']} on {loc}.",
+                "location": loc,
+                "danger_level": random.randint(1, 5),
+            })
+        return {"scenarios": fallback}
+    except Exception as e:
+        logger.error(f"Scenario generation error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate scenarios: {str(e)}")
+
+@api_router.post("/game/sessions")
+async def create_game_session(request: Request):
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    body = await request.json()
+    character_id = body.get("character_id")
+    scenario = body.get("scenario")  # Optional: chosen scenario object
+    character = await db.characters.find_one({"character_id": character_id, "user_id": user.user_id}, {"_id": 0})
+    if not character:
+        raise HTTPException(status_code=404, detail="Character not found")
+
+    # Use scenario location if provided, otherwise random
+    if scenario:
+        location = scenario.get("location", random.choice(LOCATIONS))
+        scenario_id = scenario.get("scenario_id")
+        # Update player profile with chosen scenario type
+        await update_player_preference(user.user_id, scenario.get("type", "exploration"), True)
+    else:
+        location = random.choice(LOCATIONS)
+        scenario_id = None
+
     env_type = LOCATION_ENVIRONMENTS.get(location, "urban")
-    session = GameSession(user_id=user.user_id, character_id=character_id, current_location=location, environment_type=env_type)
+    session = GameSession(
+        user_id=user.user_id,
+        character_id=character_id,
+        current_location=location,
+        environment_type=env_type,
+        scenario_id=scenario_id,
+    )
     await db.game_sessions.insert_one(session.model_dump())
     session_dict = session.model_dump()
     session_dict["environment_theme"] = ENVIRONMENT_THEMES.get(env_type, ENVIRONMENT_THEMES["urban"])
+    session_dict["scenario"] = scenario
     return session_dict
 
 @api_router.get("/game/sessions")
@@ -1692,6 +1961,64 @@ Subtly weave this growth into the narrative - perhaps they notice their reflexes
     # Build story memory from journal
     story_memory = build_story_memory_prompt(session)
 
+    # Fetch global events from other players at same location/era
+    global_events = await get_nearby_global_events(
+        session["current_location"],
+        session.get("era", "Galactic Civil War"),
+        user.user_id
+    )
+    global_events_context = ""
+    if global_events:
+        event_descriptions = []
+        for evt in global_events:
+            event_descriptions.append(
+                f"- {evt['actor_description']} was involved in a {evt['event_type']}: {evt['description']} ({evt['impact']})"
+            )
+        global_events_context = f"""
+WORLD STATE — OTHER CHARACTERS' IMPACT ON THIS LOCATION:
+The following events were caused by other characters in this area recently. Weave these naturally into the background — distant sounds, NPC gossip, environmental evidence. The player may encounter these characters as NPCs. Portray them faithfully based on their description. Do NOT reveal they are other players.
+{chr(10).join(event_descriptions)}
+"""
+
+    # Fetch NPC versions of other players' characters at this location
+    other_sessions = await db.game_sessions.find(
+        {
+            "current_location": session["current_location"],
+            "era": session.get("era", "Galactic Civil War"),
+            "user_id": {"$ne": user.user_id},
+            "game_history": {"$ne": []},
+            "updated_at": {"$gte": datetime.now(timezone.utc) - timedelta(hours=72)},
+        },
+        {"_id": 0, "character_id": 1}
+    ).to_list(5)
+
+    npc_characters_context = ""
+    if other_sessions:
+        npc_parts = []
+        for os_sess in other_sessions:
+            npc_char = await db.characters.find_one({"character_id": os_sess["character_id"]}, {"_id": 0})
+            if npc_char and npc_char.get("user_id") != user.user_id:
+                npc_profile = await get_or_create_player_profile(npc_char["user_id"])
+                # Determine personality from preferences
+                top_prefs = sorted(npc_profile.get("scenario_preferences", {}).items(), key=lambda x: x[1], reverse=True)[:2]
+                personality_hint = ", ".join([p[0] for p in top_prefs])
+                avg_len = npc_profile.get("avg_response_length", 10)
+                demeanor = "quiet and cautious" if avg_len < 10 else "talkative and bold" if avg_len > 25 else "measured and alert"
+
+                npc_equip = ", ".join([e["name"] for e in npc_char.get("equipment", [])[:3]]) if npc_char.get("equipment") else "basic gear"
+                npc_parts.append(
+                    f"- A {npc_char['species']} {npc_char['career']} ({npc_char['specialization']}) named {npc_char['name']}: "
+                    f"Carries {npc_equip}. Demeanor: {demeanor}. Drawn to {personality_hint} situations. "
+                    f"They are present in this location and may be glimpsed or encountered."
+                )
+
+        if npc_parts:
+            npc_characters_context = f"""
+OTHER CHARACTERS PRESENT (portray as NPCs — these are real characters from this world):
+{chr(10).join(npc_parts)}
+Rules: Give brief glimpses of these characters in the background or as passing encounters. If direct interaction is unavoidable, act on their behalf using their personality profile. NEVER identify them as other players. They are simply other beings in this galaxy.
+"""
+
     system_prompt = f"""You are the Game Master for a Star Wars: Edge of the Empire tabletop RPG.
 You are a master storyteller creating a DEEPLY IMMERSIVE experience — the player should feel like they are physically standing in the Star Wars universe.
 
@@ -1705,6 +2032,8 @@ CURRENT CHARACTER:
 - Specialist Talents: {talents_list}
 {combat_context}
 {capability_context}
+{global_events_context}
+{npc_characters_context}
 
 STORY MEMORY (reference when player mentions past events, people, or places):
 {story_memory}
@@ -1762,6 +2091,26 @@ Respond as the Game Master. Make the player feel like they're THERE."""
 
         # Update story journal with new story elements
         await update_story_journal(session_id, gm_response, action.action, character)
+
+        # Track player response quality for preference adaptation
+        scenario_type = "exploration"  # Default
+        if skill_name:
+            if skill_name in ("Brawl", "Melee", "Ranged (Light)", "Ranged (Heavy)"):
+                scenario_type = "combat"
+            elif skill_name in ("Charm", "Negotiation", "Leadership"):
+                scenario_type = "social"
+            elif skill_name in ("Stealth", "Skulduggery", "Coordination"):
+                scenario_type = "heist"
+            elif skill_name in ("Deception", "Coercion", "Streetwise"):
+                scenario_type = "intrigue"
+            elif skill_name in ("Survival", "Resilience", "Athletics"):
+                scenario_type = "survival"
+            elif skill_name in ("Perception", "Vigilance", "Computers"):
+                scenario_type = "mystery"
+        await analyze_response_quality(user.user_id, action.action, scenario_type)
+
+        # Detect and save significant events for the living galaxy
+        await detect_and_save_significant_event(gm_response, session, character)
 
         response_data = {
             "warning": False,

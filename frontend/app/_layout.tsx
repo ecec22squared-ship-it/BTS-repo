@@ -20,6 +20,7 @@ export default function RootLayout() {
         <Stack.Screen name="character/[id]" />
         <Stack.Screen name="game/dice" />
         <Stack.Screen name="game/play" />
+        <Stack.Screen name="game/scenarios" />
       </Stack>
     </SafeAreaProvider>
   );
