@@ -1781,6 +1781,7 @@ async def create_game_session(request: Request):
     body = await request.json()
     character_id = body.get("character_id")
     scenario = body.get("scenario")  # Optional: chosen scenario object
+    era = body.get("era", "Order 66 - Fall of the Republic")  # Era from era selection screen
     character = await db.characters.find_one({"character_id": character_id, "user_id": user.user_id}, {"_id": 0})
     if not character:
         raise HTTPException(status_code=404, detail="Character not found")
@@ -1802,6 +1803,7 @@ async def create_game_session(request: Request):
         current_location=location,
         environment_type=env_type,
         scenario_id=scenario_id,
+        era=era,
     )
     await db.game_sessions.insert_one(session.model_dump())
     session_dict = session.model_dump()

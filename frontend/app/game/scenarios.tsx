@@ -33,7 +33,8 @@ interface Scenario {
 }
 
 export default function ScenarioSelect() {
-  const { characterId } = useLocalSearchParams();
+  const { characterId, era } = useLocalSearchParams();
+  const selectedEra = (era as string) || 'Order 66 - Fall of the Republic';
   const { createGameSession } = useGameStore();
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -72,7 +73,7 @@ export default function ScenarioSelect() {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ character_id: characterId, scenario }),
+        body: JSON.stringify({ character_id: characterId, scenario, era: selectedEra }),
       });
       if (response.ok) {
         const session = await response.json();
