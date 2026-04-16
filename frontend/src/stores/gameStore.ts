@@ -44,6 +44,9 @@ interface GameState {
     setback?: number;
     force?: number;
   }) => Promise<DiceResult>;
+
+  // Scene
+  generateScene: (sessionId: string) => Promise<any>;
 }
 
 const getAuthHeader = async () => {
@@ -274,6 +277,22 @@ export const useGameStore = create<GameState>((set, get) => ({
     });
 
     if (!response.ok) throw new Error('Failed to roll dice');
+
+    return response.json();
+  },
+
+  generateScene: async (sessionId: string) => {
+    const headers = await getAuthHeader();
+    const response = await fetch(
+      `${EXPO_PUBLIC_BACKEND_URL}/api/game/sessions/${sessionId}/generate-scene`,
+      {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+      }
+    );
+
+    if (!response.ok) throw new Error('Failed to generate scene');
 
     return response.json();
   },

@@ -11,15 +11,19 @@ import {
   Platform,
   Keyboard,
   Image,
+  ImageBackground,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
+import { Audio } from 'expo-av';
 import { useGameStore } from '../../src/stores/gameStore';
-import { StoryMessage } from '../../src/components/StoryMessage';
 import { DiceDisplay } from '../../src/components/DiceDisplay';
 import { GalaxyMapLoading } from '../../src/components/GalaxyMapLoading';
 import { Character, DiceResult, GameMessage } from '../../src/types/game';
+
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
 interface EnvironmentTheme {
   type: string;
@@ -41,9 +45,22 @@ const DEFAULT_THEME: EnvironmentTheme = {
   mood: 'neon-washed duracrete streets',
 };
 
+// Environment-specific textured border configurations
+const BORDER_TEXTURES: Record<string, { top: string; side: string; accent: string; pattern: string }> = {
+  cantina:    { top: '#8B4513', side: '#5C3317', accent: '#FF6B35', pattern: 'rivets' },
+  desert:     { top: '#A0522D', side: '#8B4513', accent: '#DAA520', pattern: 'sandstone' },
+  jungle:     { top: '#1B4332', side: '#0B2B1A', accent: '#2ECC71', pattern: 'vines' },
+  space:      { top: '#0D0D2B', side: '#05051A', accent: '#7B68EE', pattern: 'stars' },
+  urban:      { top: '#2F4F4F', side: '#1C3030', accent: '#00CED1', pattern: 'marble' },
+  ruins:      { top: '#4A3728', side: '#2E221A', accent: '#D2691E', pattern: 'stone' },
+  ice:        { top: '#4682B4', side: '#2F5B8A', accent: '#ADD8E6', pattern: 'crystal' },
+  industrial: { top: '#5C4033', side: '#3A2820', accent: '#FF8C00', pattern: 'metal' },
+  dark_side:  { top: '#2B0015', side: '#1A000D', accent: '#DC143C', pattern: 'energy' },
+};
+
 export default function GamePlay() {
   const { sessionId, characterId } = useLocalSearchParams();
-  const { currentSession, loadGameSession, startGame, sendAction, characters, fetchCharacters } = useGameStore();
+  const { currentSession, loadGameSession, startGame, sendAction, characters, fetchCharacters, generateScene } = useGameStore();
 
   const [character, setCharacter] = useState<Character | null>(null);
   const [messages, setMessages] = useState<Array<GameMessage & { dice_line?: string }>>([]);
@@ -54,11 +71,21 @@ export default function GamePlay() {
   const [showSkills, setShowSkills] = useState(false);
   const [selectedSkill, setSelectedSkill] = useState<string | null>(null);
   const [envTheme, setEnvTheme] = useState<EnvironmentTheme>(DEFAULT_THEME);
+  const [sceneImage, setSceneImage] = useState<string | null>(null);
+  const [isGeneratingScene, setIsGeneratingScene] = useState(false);
+  const [soundObj, setSoundObj] = useState<Audio.Sound | null>(null);
 
   const scrollViewRef = useRef<ScrollView>(null);
+  const prevEnvRef = useRef<string>('urban');
 
   useEffect(() => {
     initGame();
+    return () => {
+      // Cleanup sound on unmount
+      if (soundObj) {
+        soundObj.unloadAsync();
+      }
+    };
   }, [sessionId, characterId]);
 
   const initGame = async () => {
@@ -82,9 +109,18 @@ export default function GamePlay() {
           content: result.opening,
           timestamp: new Date().toISOString()
         }]);
-        if (result.environment_theme) setEnvTheme(result.environment_theme);
+        if (result.environment_theme) {
+          setEnvTheme(result.environment_theme);
+          prevEnvRef.current = result.environment_type || 'urban';
+        }
+        // Generate scene image async after game starts
+        generateSceneAsync(session.session_id);
       } else if (session) {
         setMessages(session.game_history);
+        // Load existing scene image if available
+        if ((session as any).scene_image_base64) {
+          setSceneImage((session as any).scene_image_base64);
+        }
       }
     } catch (error) {
       console.error('Init game error:', error);
@@ -93,45 +129,51 @@ export default function GamePlay() {
     }
   };
 
+  const generateSceneAsync = async (sid: string) => {
+    setIsGeneratingScene(true);
+    try {
+      const result = await generateScene(sid);
+      if (result.scene_image_base64) {
+        setSceneImage(result.scene_image_base64);
+      }
+    } catch (error) {
+      console.error('Scene generation error:', error);
+    } finally {
+      setIsGeneratingScene(false);
+    }
+  };
+
   const handleSendAction = async () => {
     if (!inputText.trim() || !currentSession) return;
-
     const action = inputText.trim();
     setInputText('');
     setIsSending(true);
     Keyboard.dismiss();
 
     const playerMessage: GameMessage & { dice_line?: string } = {
-      role: 'player',
-      content: action,
-      timestamp: new Date().toISOString()
+      role: 'player', content: action, timestamp: new Date().toISOString()
     };
     setMessages(prev => [...prev, playerMessage]);
 
     try {
-      const result = await sendAction(
-        currentSession.session_id,
-        action,
-        selectedSkill || undefined
-      );
-
+      const result = await sendAction(currentSession.session_id, action, selectedSkill || undefined);
       const gmMessage: GameMessage & { dice_line?: string } = {
-        role: 'game_master',
-        content: result.gm_response,
-        dice_line: result.dice_line || undefined,
-        timestamp: new Date().toISOString()
+        role: 'game_master', content: result.gm_response,
+        dice_line: result.dice_line || undefined, timestamp: new Date().toISOString()
       };
       setMessages(prev => [...prev, gmMessage]);
 
-      if (result.dice_result) {
-        setLastDiceResult(result.dice_result);
-      } else {
-        setLastDiceResult(null);
-      }
+      if (result.dice_result) setLastDiceResult(result.dice_result);
+      else setLastDiceResult(null);
 
       // Update environment theme if changed
       if (result.environment_theme) {
         setEnvTheme(result.environment_theme);
+        // If environment changed, regenerate scene
+        if (result.environment_type && result.environment_type !== prevEnvRef.current) {
+          prevEnvRef.current = result.environment_type;
+          generateSceneAsync(currentSession.session_id);
+        }
       }
 
       setSelectedSkill(null);
@@ -151,299 +193,520 @@ export default function GamePlay() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: envTheme.background }]}>
-        <View style={styles.loadingContainer}>
-          <GalaxyMapLoading accentColor={envTheme.primary} />
-        </View>
-      </SafeAreaView>
+      <View style={[styles.container, { backgroundColor: '#050510' }]}>
+        <SafeAreaView style={{ flex: 1 }}>
+          <View style={styles.loadingContainer}>
+            <GalaxyMapLoading accentColor={envTheme.primary} />
+          </View>
+        </SafeAreaView>
+      </View>
     );
   }
 
   const careerSkills = character?.skills.filter(s => s.rank > 0) || [];
+  const borderTex = BORDER_TEXTURES[envTheme.type] || BORDER_TEXTURES['urban'];
 
-  // Dynamic styles based on environment
-  const dynamicStyles = {
-    headerBorder: { borderBottomColor: `${envTheme.border}80` },
-    statusBarBg: { backgroundColor: `${envTheme.primary}10` },
-    locationText: { color: envTheme.primary },
-    inputBorder: { borderTopColor: `${envTheme.border}80` },
-    sendBtn: { backgroundColor: envTheme.primary },
-    skillChipSelected: { backgroundColor: envTheme.primary },
+  // --- Render Environment-Textured Border Decorations ---
+  const renderBorderDecoration = (position: 'top' | 'bottom' | 'left' | 'right') => {
+    const isHorizontal = position === 'top' || position === 'bottom';
+    const pattern = borderTex.pattern;
+
+    // Create pattern elements based on environment type
+    const patternElements = [];
+    const count = isHorizontal ? 12 : 8;
+
+    for (let i = 0; i < count; i++) {
+      const offset = (i / count) * 100;
+      let element;
+
+      switch (pattern) {
+        case 'vines':
+          element = (
+            <View key={i} style={[
+              styles.borderElement,
+              isHorizontal ? { left: `${offset}%` } : { top: `${offset}%` },
+              {
+                width: isHorizontal ? 14 : 6,
+                height: isHorizontal ? 6 : 14,
+                backgroundColor: i % 2 === 0 ? '#2ECC71' : '#1B4332',
+                borderRadius: 3,
+                opacity: 0.6 + Math.random() * 0.4,
+                transform: [{ rotate: `${Math.random() * 30 - 15}deg` }],
+              }
+            ]} />
+          );
+          break;
+        case 'sandstone':
+          element = (
+            <View key={i} style={[
+              styles.borderElement,
+              isHorizontal ? { left: `${offset}%` } : { top: `${offset}%` },
+              {
+                width: isHorizontal ? 20 : 8,
+                height: isHorizontal ? 8 : 20,
+                backgroundColor: i % 3 === 0 ? '#C19A6B' : i % 3 === 1 ? '#A0522D' : '#8B4513',
+                borderRadius: 2,
+                opacity: 0.7,
+              }
+            ]} />
+          );
+          break;
+        case 'crystal':
+          element = (
+            <View key={i} style={[
+              styles.borderElement,
+              isHorizontal ? { left: `${offset}%` } : { top: `${offset}%` },
+              {
+                width: isHorizontal ? 8 : 4,
+                height: isHorizontal ? 4 : 8,
+                backgroundColor: i % 2 === 0 ? '#B0E0E6' : '#87CEEB',
+                borderRadius: 1,
+                opacity: 0.4 + Math.random() * 0.6,
+              }
+            ]} />
+          );
+          break;
+        case 'energy':
+          element = (
+            <View key={i} style={[
+              styles.borderElement,
+              isHorizontal ? { left: `${offset}%` } : { top: `${offset}%` },
+              {
+                width: isHorizontal ? 16 : 3,
+                height: isHorizontal ? 3 : 16,
+                backgroundColor: '#DC143C',
+                borderRadius: 1,
+                opacity: 0.3 + Math.random() * 0.7,
+              }
+            ]} />
+          );
+          break;
+        case 'stars':
+          element = (
+            <View key={i} style={[
+              styles.borderElement,
+              isHorizontal ? { left: `${offset}%` } : { top: `${offset}%` },
+              {
+                width: 3,
+                height: 3,
+                backgroundColor: '#fff',
+                borderRadius: 1.5,
+                opacity: 0.2 + Math.random() * 0.8,
+              }
+            ]} />
+          );
+          break;
+        default: // rivets, marble, metal, stone
+          element = (
+            <View key={i} style={[
+              styles.borderElement,
+              isHorizontal ? { left: `${offset}%` } : { top: `${offset}%` },
+              {
+                width: isHorizontal ? 6 : 4,
+                height: isHorizontal ? 4 : 6,
+                backgroundColor: borderTex.accent,
+                borderRadius: pattern === 'rivets' ? 3 : 1,
+                opacity: 0.4,
+              }
+            ]} />
+          );
+      }
+      patternElements.push(element);
+    }
+
+    const borderStyle = {
+      top: { top: 0, left: 0, right: 0, height: 6, backgroundColor: borderTex.top },
+      bottom: { bottom: 0, left: 0, right: 0, height: 6, backgroundColor: borderTex.top },
+      left: { top: 0, bottom: 0, left: 0, width: 6, backgroundColor: borderTex.side },
+      right: { top: 0, bottom: 0, right: 0, width: 6, backgroundColor: borderTex.side },
+    };
+
+    return (
+      <View style={[styles.borderStrip, borderStyle[position] as any]} pointerEvents="none">
+        {patternElements}
+      </View>
+    );
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: envTheme.background }]}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}
-        keyboardVerticalOffset={0}
-      >
-        {/* Header with environment color */}
-        <View style={[styles.header, dynamicStyles.headerBorder]}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#fff" />
-          </TouchableOpacity>
-          <View style={styles.headerCenter}>
-            <Text style={[styles.locationText, dynamicStyles.locationText]} numberOfLines={1}>
-              {currentSession?.current_location || 'Unknown Location'}
-            </Text>
-            <Text style={[styles.moodText, { color: `${envTheme.accent}99` }]}>
-              {envTheme.mood}
-            </Text>
-          </View>
-          <TouchableOpacity
-            onPress={() => router.push('/game/dice')}
-            style={styles.diceButton}
-          >
-            <Ionicons name="dice" size={24} color={envTheme.primary} />
-          </TouchableOpacity>
-        </View>
+    <View style={[styles.container, { backgroundColor: envTheme.background }]}>
+      {/* Full-screen scene background */}
+      {sceneImage ? (
+        <Image
+          source={{ uri: `data:image/png;base64,${sceneImage}` }}
+          style={styles.sceneBackground}
+          resizeMode="cover"
+        />
+      ) : (
+        <View style={[styles.sceneBackground, { backgroundColor: envTheme.background }]} />
+      )}
 
-        {/* Character Status Bar */}
-        {character && (
-          <View style={[styles.statusBar, dynamicStyles.statusBarBg, { borderBottomColor: `${envTheme.border}60` }]}>
-            <View style={styles.statusItem}>
-              {character.portrait_base64 ? (
-                <Image
-                  source={{ uri: `data:image/png;base64,${character.portrait_base64}` }}
-                  style={[styles.miniPortrait, { borderColor: envTheme.primary }]}
-                />
-              ) : (
-                <View style={styles.miniPortraitPlaceholder}>
-                  <Ionicons name="person" size={16} color="#666" />
-                </View>
-              )}
-              <Text style={styles.characterName}>{character.name}</Text>
-            </View>
-            <View style={styles.statusBars}>
-              <View style={styles.statusBarItem}>
-                <Ionicons name="heart" size={14} color="#F44336" />
-                <Text style={styles.statusValue}>
-                  {character.health.wounds}/{character.health.wound_threshold}
-                </Text>
-              </View>
-              <View style={styles.statusBarItem}>
-                <Ionicons name="flash" size={14} color="#03A9F4" />
-                <Text style={styles.statusValue}>
-                  {character.health.strain}/{character.health.strain_threshold}
-                </Text>
-              </View>
-            </View>
-          </View>
-        )}
+      {/* Dark overlay for text readability */}
+      <View style={styles.darkOverlay} />
 
-        {/* Story Content */}
-        <ScrollView
-          ref={scrollViewRef}
-          style={styles.storyContainer}
-          contentContainerStyle={styles.storyContent}
+      {/* Environment-textured borders */}
+      {renderBorderDecoration('top')}
+      {renderBorderDecoration('bottom')}
+      {renderBorderDecoration('left')}
+      {renderBorderDecoration('right')}
+
+      {/* Corner accents */}
+      <View style={[styles.cornerAccent, styles.cornerTL, { borderTopColor: borderTex.accent, borderLeftColor: borderTex.accent }]} />
+      <View style={[styles.cornerAccent, styles.cornerTR, { borderTopColor: borderTex.accent, borderRightColor: borderTex.accent }]} />
+      <View style={[styles.cornerAccent, styles.cornerBL, { borderBottomColor: borderTex.accent, borderLeftColor: borderTex.accent }]} />
+      <View style={[styles.cornerAccent, styles.cornerBR, { borderBottomColor: borderTex.accent, borderRightColor: borderTex.accent }]} />
+
+      <SafeAreaView style={{ flex: 1 }}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
         >
-          {messages.map((message, index) => (
-            <View key={index}>
-              <StoryMessage message={message} envTheme={envTheme} />
-              {/* Dice line rendered separately below GM messages */}
-              {message.dice_line && (
-                <View style={[styles.diceLineContainer, { borderColor: `${envTheme.accent}60` }]}>
-                  <Ionicons name="dice" size={14} color={envTheme.accent} />
-                  <Text style={[styles.diceLineText, { color: envTheme.accent }]}>
-                    {message.dice_line}
-                  </Text>
-                </View>
+          {/* Header - translucent */}
+          <View style={[styles.header, { backgroundColor: `${envTheme.background}CC` }]}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+              <Ionicons name="arrow-back" size={22} color="#fff" />
+            </TouchableOpacity>
+            <View style={styles.headerCenter}>
+              <Text style={[styles.locationText, { color: envTheme.primary }]} numberOfLines={1}>
+                {currentSession?.current_location || 'Unknown'}
+              </Text>
+              <Text style={[styles.moodText, { color: `${envTheme.accent}AA` }]}>
+                {envTheme.mood}
+              </Text>
+            </View>
+            <View style={styles.headerRight}>
+              {isGeneratingScene && (
+                <ActivityIndicator size="small" color={envTheme.accent} style={{ marginRight: 8 }} />
               )}
-            </View>
-          ))}
-
-          {/* Galaxy Map Loading while AI thinks */}
-          {isSending && (
-            <GalaxyMapLoading accentColor={envTheme.primary} />
-          )}
-
-          {lastDiceResult && !isSending && (
-            <View style={styles.diceResultContainer}>
-              <DiceDisplay result={lastDiceResult} />
-            </View>
-          )}
-        </ScrollView>
-
-        {/* Skills Panel */}
-        {showSkills && (
-          <View style={[styles.skillsPanel, { borderTopColor: `${envTheme.border}80` }]}>
-            <View style={styles.skillsPanelHeader}>
-              <Text style={[styles.skillsPanelTitle, { color: envTheme.primary }]}>Use a Skill</Text>
-              <TouchableOpacity onPress={() => setShowSkills(false)}>
-                <Ionicons name="close" size={24} color="#fff" />
+              <TouchableOpacity onPress={() => router.push('/game/dice')} style={styles.diceButton}>
+                <Ionicons name="dice" size={22} color={envTheme.primary} />
               </TouchableOpacity>
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={styles.skillsRow}>
-                {careerSkills.map((skill) => (
-                  <TouchableOpacity
-                    key={skill.name}
-                    style={[
-                      styles.skillChip,
-                      selectedSkill === skill.name && dynamicStyles.skillChipSelected,
-                    ]}
-                    onPress={() => {
-                      setSelectedSkill(selectedSkill === skill.name ? null : skill.name);
-                    }}
-                  >
-                    <Text style={[
-                      styles.skillChipText,
-                      selectedSkill === skill.name && styles.skillChipTextSelected,
-                    ]}>
-                      {skill.name} ({skill.rank})
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </ScrollView>
           </View>
-        )}
 
-        {/* Input Area */}
-        <View style={[styles.inputContainer, dynamicStyles.inputBorder]}>
-          <TouchableOpacity
-            style={[styles.skillToggle, selectedSkill && { borderColor: envTheme.primary }]}
-            onPress={() => setShowSkills(!showSkills)}
+          {/* Character Status Bar - translucent */}
+          {character && (
+            <View style={[styles.statusBar, { backgroundColor: `${envTheme.background}99` }]}>
+              <View style={styles.statusItem}>
+                {character.portrait_base64 ? (
+                  <Image
+                    source={{ uri: `data:image/png;base64,${character.portrait_base64}` }}
+                    style={[styles.miniPortrait, { borderColor: envTheme.primary }]}
+                  />
+                ) : (
+                  <View style={[styles.miniPortraitPlaceholder, { borderColor: envTheme.border }]}>
+                    <Ionicons name="person" size={14} color="#666" />
+                  </View>
+                )}
+                <Text style={styles.charName}>{character.name}</Text>
+              </View>
+              <View style={styles.statusBars}>
+                <View style={styles.hpBar}>
+                  <View style={[styles.hpFill, {
+                    width: `${Math.max(0, (1 - character.health.wounds / character.health.wound_threshold) * 100)}%`,
+                    backgroundColor: '#F44336',
+                  }]} />
+                  <Text style={styles.hpText}>{character.health.wounds}/{character.health.wound_threshold}</Text>
+                </View>
+                <View style={styles.hpBar}>
+                  <View style={[styles.hpFill, {
+                    width: `${Math.max(0, (1 - character.health.strain / character.health.strain_threshold) * 100)}%`,
+                    backgroundColor: '#03A9F4',
+                  }]} />
+                  <Text style={styles.hpText}>{character.health.strain}/{character.health.strain_threshold}</Text>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* Story Content - the main viewport */}
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.storyContainer}
+            contentContainerStyle={styles.storyContent}
           >
-            <Ionicons
-              name={showSkills ? 'chevron-down' : 'chevron-up'}
-              size={20}
-              color={selectedSkill ? envTheme.primary : '#888'}
-            />
-            <Text style={[styles.skillToggleText, selectedSkill && { color: envTheme.primary }]}>
-              {selectedSkill || 'Skill'}
-            </Text>
-          </TouchableOpacity>
+            {messages.map((message, index) => {
+              const isGM = message.role === 'game_master';
+              const isPlayer = message.role === 'player';
 
-          <TextInput
-            style={styles.input}
-            value={inputText}
-            onChangeText={setInputText}
-            placeholder="What do you do?"
-            placeholderTextColor="#666"
-            multiline
-            maxLength={500}
-          />
+              return (
+                <View key={index}>
+                  {/* Immersive message bubble */}
+                  <View style={[
+                    styles.msgBubble,
+                    isGM ? [styles.gmBubble, { borderLeftColor: envTheme.primary }] : styles.playerBubble,
+                  ]}>
+                    <View style={styles.msgHeader}>
+                      <Ionicons
+                        name={isGM ? 'planet' : 'person'}
+                        size={14}
+                        color={isGM ? envTheme.primary : '#4CAF50'}
+                      />
+                      <Text style={[styles.msgRole, { color: isGM ? envTheme.primary : '#4CAF50' }]}>
+                        {isGM ? 'Game Master' : 'You'}
+                      </Text>
+                    </View>
+                    <Text style={[styles.msgText, isGM && { color: '#e8e8e8' }]}>
+                      {message.content}
+                    </Text>
+                  </View>
 
-          <TouchableOpacity
-            style={[
-              styles.sendButton,
-              dynamicStyles.sendBtn,
-              (!inputText.trim() || isSending) && styles.sendButtonDisabled
-            ]}
-            onPress={handleSendAction}
-            disabled={!inputText.trim() || isSending}
-          >
-            {isSending ? (
-              <ActivityIndicator size="small" color="#000" />
-            ) : (
-              <Ionicons name="send" size={20} color="#000" />
+                  {/* Dice line - styled mechanically */}
+                  {message.dice_line && (
+                    <View style={[styles.diceLine, { borderColor: `${envTheme.accent}40` }]}>
+                      <Ionicons name="dice" size={12} color={envTheme.accent} />
+                      <Text style={[styles.diceLineText, { color: envTheme.accent }]}>
+                        {message.dice_line}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+
+            {/* Galaxy Map Loading while AI thinks */}
+            {isSending && (
+              <View style={styles.loadingBubble}>
+                <GalaxyMapLoading accentColor={envTheme.primary} />
+              </View>
             )}
-          </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+
+            {lastDiceResult && !isSending && (
+              <DiceDisplay result={lastDiceResult} />
+            )}
+          </ScrollView>
+
+          {/* Skills Panel */}
+          {showSkills && (
+            <View style={[styles.skillsPanel, { backgroundColor: `${envTheme.background}E6` }]}>
+              <View style={styles.skillsPanelHeader}>
+                <Text style={[styles.skillsPanelTitle, { color: envTheme.primary }]}>Use a Skill</Text>
+                <TouchableOpacity onPress={() => setShowSkills(false)}>
+                  <Ionicons name="close" size={22} color="#fff" />
+                </TouchableOpacity>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={styles.skillsRow}>
+                  {careerSkills.map((skill) => (
+                    <TouchableOpacity
+                      key={skill.name}
+                      style={[
+                        styles.skillChip,
+                        selectedSkill === skill.name && { backgroundColor: envTheme.primary },
+                      ]}
+                      onPress={() => setSelectedSkill(selectedSkill === skill.name ? null : skill.name)}
+                    >
+                      <Text style={[
+                        styles.skillChipText,
+                        selectedSkill === skill.name && { color: '#000', fontWeight: '700' },
+                      ]}>
+                        {skill.name} ({skill.rank})
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+          )}
+
+          {/* Input Area */}
+          <View style={[styles.inputContainer, { backgroundColor: `${envTheme.background}DD` }]}>
+            <TouchableOpacity
+              style={[styles.skillToggle, selectedSkill && { borderColor: envTheme.primary }]}
+              onPress={() => setShowSkills(!showSkills)}
+            >
+              <Ionicons
+                name={showSkills ? 'chevron-down' : 'chevron-up'}
+                size={18}
+                color={selectedSkill ? envTheme.primary : '#666'}
+              />
+            </TouchableOpacity>
+
+            <TextInput
+              style={styles.input}
+              value={inputText}
+              onChangeText={setInputText}
+              placeholder="What do you do?"
+              placeholderTextColor="#555"
+              multiline
+              maxLength={500}
+            />
+
+            <TouchableOpacity
+              style={[
+                styles.sendButton,
+                { backgroundColor: envTheme.primary },
+                (!inputText.trim() || isSending) && styles.sendButtonDisabled
+              ]}
+              onPress={handleSendAction}
+              disabled={!inputText.trim() || isSending}
+            >
+              {isSending ? (
+                <ActivityIndicator size="small" color="#000" />
+              ) : (
+                <Ionicons name="send" size={18} color="#000" />
+              )}
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  container: { flex: 1 },
+  sceneBackground: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    width: '100%', height: '100%',
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+  darkOverlay: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.55)',
   },
+  borderStrip: {
+    position: 'absolute', zIndex: 20, overflow: 'hidden',
+  },
+  borderElement: {
+    position: 'absolute',
+  },
+  cornerAccent: {
+    position: 'absolute', width: 20, height: 20, zIndex: 25,
+    borderWidth: 2, borderColor: 'transparent',
+  },
+  cornerTL: { top: 0, left: 0, borderTopWidth: 2, borderLeftWidth: 2, borderBottomWidth: 0, borderRightWidth: 0 },
+  cornerTR: { top: 0, right: 0, borderTopWidth: 2, borderRightWidth: 2, borderBottomWidth: 0, borderLeftWidth: 0 },
+  cornerBL: { bottom: 0, left: 0, borderBottomWidth: 2, borderLeftWidth: 2, borderTopWidth: 0, borderRightWidth: 0 },
+  cornerBR: { bottom: 0, right: 0, borderBottomWidth: 2, borderRightWidth: 2, borderTopWidth: 0, borderLeftWidth: 0 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+
+  // Header
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 12,
-    borderBottomWidth: 1,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)',
   },
-  backButton: { padding: 8 },
-  headerCenter: { flex: 1, marginHorizontal: 12, alignItems: 'center' },
-  locationText: { fontSize: 15, fontWeight: 'bold', textAlign: 'center' },
-  moodText: { fontSize: 10, fontStyle: 'italic', marginTop: 2 },
-  diceButton: { padding: 8 },
+  backButton: { padding: 6 },
+  headerCenter: { flex: 1, marginHorizontal: 8, alignItems: 'center' },
+  locationText: { fontSize: 14, fontWeight: 'bold' },
+  moodText: { fontSize: 9, fontStyle: 'italic', marginTop: 1, letterSpacing: 0.5 },
+  headerRight: { flexDirection: 'row', alignItems: 'center' },
+  diceButton: { padding: 6 },
+
+  // Status bar
   statusBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 12, paddingVertical: 6,
   },
   statusItem: { flexDirection: 'row', alignItems: 'center' },
   miniPortrait: {
-    width: 32, height: 32, borderRadius: 16, marginRight: 8, borderWidth: 1,
+    width: 28, height: 28, borderRadius: 14, marginRight: 8, borderWidth: 1,
   },
   miniPortraitPlaceholder: {
-    width: 32, height: 32, borderRadius: 16,
+    width: 28, height: 28, borderRadius: 14,
     backgroundColor: 'rgba(255,255,255,0.1)',
-    justifyContent: 'center', alignItems: 'center', marginRight: 8,
+    justifyContent: 'center', alignItems: 'center', marginRight: 8, borderWidth: 1,
   },
-  characterName: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  statusBars: { flexDirection: 'row' },
-  statusBarItem: { flexDirection: 'row', alignItems: 'center', marginLeft: 16 },
-  statusValue: { color: '#fff', fontSize: 12, marginLeft: 4 },
+  charName: { color: '#fff', fontSize: 13, fontWeight: '600' },
+  statusBars: { flexDirection: 'row', gap: 8 },
+  hpBar: {
+    width: 60, height: 16, borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    overflow: 'hidden', justifyContent: 'center',
+  },
+  hpFill: {
+    position: 'absolute', top: 0, left: 0, bottom: 0, borderRadius: 8,
+  },
+  hpText: {
+    color: '#fff', fontSize: 9, fontWeight: 'bold',
+    textAlign: 'center', zIndex: 1,
+  },
+
+  // Story
   storyContainer: { flex: 1 },
-  storyContent: { padding: 16 },
-  diceLineContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    marginVertical: 4,
-    marginLeft: 12,
+  storyContent: { padding: 12, paddingBottom: 20 },
+
+  // Message bubbles - translucent glass effect
+  msgBubble: {
+    padding: 12, borderRadius: 12, marginVertical: 4,
+    maxWidth: '95%',
+  },
+  gmBubble: {
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    borderLeftWidth: 3,
+    alignSelf: 'flex-start',
+  },
+  playerBubble: {
+    backgroundColor: 'rgba(76,175,80,0.15)',
+    borderRightWidth: 3,
+    borderRightColor: '#4CAF50',
+    alignSelf: 'flex-end',
+  },
+  msgHeader: {
+    flexDirection: 'row', alignItems: 'center', marginBottom: 4,
+  },
+  msgRole: {
+    fontSize: 11, fontWeight: 'bold', marginLeft: 6,
+  },
+  msgText: {
+    color: '#ddd', fontSize: 14, lineHeight: 21,
+  },
+
+  // Dice line
+  diceLine: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 5, paddingHorizontal: 10,
+    marginVertical: 3, marginLeft: 12,
     borderLeftWidth: 2,
-    backgroundColor: 'rgba(255,255,255,0.03)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     borderRadius: 4,
   },
   diceLineText: {
-    fontSize: 11,
-    fontWeight: '600',
-    marginLeft: 8,
-    fontFamily: 'monospace',
-    letterSpacing: 0.3,
+    fontSize: 10, fontWeight: '600', marginLeft: 6,
+    fontFamily: 'monospace', letterSpacing: 0.3,
   },
-  diceResultContainer: { marginTop: 8 },
+
+  loadingBubble: {
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 12, marginVertical: 8,
+    overflow: 'hidden',
+  },
+
+  // Skills panel
   skillsPanel: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderTopWidth: 1,
-    padding: 12,
+    padding: 10,
+    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)',
   },
   skillsPanelHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6,
   },
-  skillsPanelTitle: { fontSize: 14, fontWeight: 'bold' },
+  skillsPanelTitle: { fontSize: 13, fontWeight: 'bold' },
   skillsRow: { flexDirection: 'row' },
   skillChip: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, marginRight: 8,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    paddingVertical: 7, paddingHorizontal: 14, borderRadius: 18, marginRight: 8,
   },
-  skillChipText: { color: '#fff', fontSize: 13 },
-  skillChipTextSelected: { color: '#000', fontWeight: '600' },
+  skillChipText: { color: '#ccc', fontSize: 12 },
+
+  // Input
   inputContainer: {
     flexDirection: 'row', alignItems: 'flex-end',
-    padding: 12, borderTopWidth: 1, backgroundColor: 'rgba(0,0,0,0.5)',
+    padding: 10, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)',
   },
   skillToggle: {
-    flexDirection: 'row', alignItems: 'center',
+    width: 36, height: 36, borderRadius: 18,
     backgroundColor: 'rgba(255,255,255,0.1)',
-    paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8, marginRight: 8,
-    borderWidth: 1, borderColor: 'transparent',
+    justifyContent: 'center', alignItems: 'center',
+    marginRight: 8, borderWidth: 1, borderColor: 'transparent',
   },
-  skillToggleText: { color: '#888', fontSize: 12, marginLeft: 4 },
   input: {
     flex: 1, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 20,
-    paddingHorizontal: 16, paddingVertical: 10, color: '#fff', fontSize: 15,
-    maxHeight: 100, marginRight: 8,
+    paddingHorizontal: 14, paddingVertical: 8, color: '#fff', fontSize: 14,
+    maxHeight: 90, marginRight: 8,
   },
   sendButton: {
-    width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center',
+    width: 40, height: 40, borderRadius: 20,
+    justifyContent: 'center', alignItems: 'center',
   },
-  sendButtonDisabled: { opacity: 0.5 },
+  sendButtonDisabled: { opacity: 0.4 },
 });

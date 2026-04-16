@@ -139,6 +139,7 @@ class GameSession(BaseModel):
     story_context: List[str] = Field(default_factory=list)
     current_location: str = "Nar Shaddaa - The Smuggler's Moon"
     environment_type: str = "urban"
+    scene_image_base64: Optional[str] = None
     npcs: List[Dict[str, Any]] = Field(default_factory=list)
     combat_state: CombatState = Field(default_factory=CombatState)
     game_history: List[GameMessage] = Field(default_factory=list)
@@ -1307,6 +1308,70 @@ Keep it to 3-4 paragraphs. Make it feel like Star Wars! NEVER reference dice or 
     except Exception as e:
         logger.error(f"Start game error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to start game: {str(e)}")
+
+# ============================================================================
+# Scene Image Generation
+# ============================================================================
+
+SCENE_PROMPTS = {
+    "cantina": "First-person POV inside a dimly lit alien cantina, worn durasteel bar counter in foreground, exotic alien patrons in shadows, holographic advertisements flickering on walls, smoke curling through amber light, glasses and bottles on the bar, a band stage in the far corner",
+    "desert": "First-person POV standing on cracked red sandstone overlooking a vast desert canyon, twin suns low on the horizon casting long shadows, wind-carved rock spires in the distance, heat shimmer rising from the sand, a distant moisture vaporator silhouette",
+    "jungle": "First-person POV pushing through dense alien jungle, massive bioluminescent flowers and curling vines framing the view, mist hanging between enormous tree trunks, strange insects glowing in the undergrowth, a narrow trail leading into green-blue canopy darkness",
+    "space": "First-person POV from a starship cockpit looking into deep space, control panels visible at bottom edge, a nebula of purple and blue swirling ahead, distant star systems as pinpoints, hyperspace lane markers glowing faintly, an asteroid field to the right",
+    "urban": "First-person POV standing on a rain-slicked landing platform, massive neon-lit skyscrapers towering overhead, speeders flying between buildings, holographic billboards in alien scripts, steam rising from vents below, the glow of a thousand windows stretching into the sky",
+    "ruins": "First-person POV entering an ancient stone temple, crumbling carved pillars on either side, roots growing through cracked walls, shafts of dusty light from holes in the ceiling, worn hieroglyphs visible on dark stone surfaces, a long corridor vanishing into darkness",
+    "ice": "First-person POV on a frozen cliff edge, jagged ice formations towering like blue-white crystal spires, a howling blizzard partially obscuring the distant frozen wasteland, northern lights shimmering green above, a cave entrance carved from glacial ice",
+    "industrial": "First-person POV on a catwalk inside a massive starship scrapyard, enormous rusted hull sections stacked high, sparks raining from cutting torches above, heavy machinery moving in the background, grease-stained durasteel platforms, chains and cables hanging",
+    "dark_side": "First-person POV in a cave pulsing with dark energy, crimson veins of light running through black obsidian walls, red mist pooling at floor level, jagged stalactites dripping shadowy substance, the feeling of ancient malevolent power, distant echoes of whispers",
+}
+
+@api_router.post("/game/sessions/{session_id}/generate-scene")
+async def generate_scene(session_id: str, request: Request):
+    """Generate a first-person scene image for the current game environment"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    session = await db.game_sessions.find_one({"session_id": session_id, "user_id": user.user_id}, {"_id": 0})
+    if not session:
+        raise HTTPException(status_code=404, detail="Game session not found")
+
+    env_type = session.get("environment_type", "urban")
+    location = session.get("current_location", "Unknown")
+    
+    # Get recent story context for a more specific scene
+    recent_history = session.get("game_history", [])[-3:]
+    story_context = ""
+    for msg in recent_history:
+        if msg.get("role") == "game_master":
+            story_context = msg.get("content", "")[:300]
+            break
+
+    base_scene = SCENE_PROMPTS.get(env_type, SCENE_PROMPTS["urban"])
+
+    prompt = f"""Cinematic first-person point-of-view digital painting, Star Wars universe, ultra-wide 16:9 aspect:
+
+SCENE: {base_scene}
+
+LOCATION: {location}
+{f'STORY CONTEXT: {story_context}' if story_context else ''}
+
+ARTISTIC DIRECTION: Hyper-detailed environment art, cinematic lighting, volumetric atmosphere, Star Wars aesthetic. First-person perspective looking into the scene. Rich environmental textures - if outdoors show terrain material (rock, sand, ice, vegetation). Moody atmospheric lighting. No text, no UI elements, no characters in extreme foreground. The image should feel like a window into this world."""
+
+    try:
+        image_gen = OpenAIImageGeneration(api_key=EMERGENT_LLM_KEY)
+        images = await image_gen.generate_images(prompt=prompt, model="gpt-image-1", number_of_images=1)
+        if images and len(images) > 0:
+            image_base64 = base64.b64encode(images[0]).decode('utf-8')
+            await db.game_sessions.update_one(
+                {"session_id": session_id},
+                {"$set": {"scene_image_base64": image_base64}}
+            )
+            return {"scene_image_base64": image_base64, "environment_type": env_type}
+        else:
+            raise HTTPException(status_code=500, detail="No scene image generated")
+    except Exception as e:
+        logger.error(f"Scene generation error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate scene: {str(e)}")
 
 # ============================================================================
 # Root endpoint
