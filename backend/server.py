@@ -690,8 +690,8 @@ def assess_action_difficulty(character: dict, skill_name: str, action_text: str)
 
     # Determine difficulty context
     is_untrained = skill_rank == 0
-    is_low_stat = stat_value <= 2
-    is_very_hard = total_dice <= 2  # Only 2 green dice vs any difficulty
+    is_low_stat = stat_value <= 1  # Only truly weak stats trigger severe warning
+    is_very_hard = total_dice <= 1  # Almost no dice at all
 
     warning = None
     severity = "none"
@@ -702,25 +702,16 @@ def assess_action_difficulty(character: dict, skill_name: str, action_text: str)
         species = character.get("species", "being")
         warning = (
             f"Your character {character.get('name', 'you')} has NO training in {skill_name} "
-            f"and lacks natural aptitude in {skill_char.title()} (stat: {stat_value}). "
-            f"As a {species} {career}, this is far outside your expertise. "
-            f"With only {total_dice} dice against the challenge, failure is very likely "
-            f"and could have serious consequences. "
-            f"Consider using a skill you're trained in, or finding another approach."
-        )
-    elif is_untrained and not is_low_stat:
-        severity = "moderate"
-        warning = (
-            f"Your character has no formal training in {skill_name}. "
-            f"You're relying entirely on raw {skill_char.title()} ({stat_value}). "
-            f"You might pull it off on instinct, but don't count on it."
+            f"and is particularly weak in {skill_char.title()} (stat: {stat_value}). "
+            f"As a {species} {career}, this is dangerously beyond your capability. "
+            f"With only {total_dice} dice, failure is almost certain "
+            f"and could have dire consequences."
         )
     elif is_very_hard:
         severity = "hard"
         warning = (
-            f"This action requires exceptional {skill_name} ability. "
-            f"Your current skill pool ({total_dice} dice) makes success unlikely against this challenge. "
-            f"The odds are stacked heavily against you."
+            f"This is an extremely difficult attempt. "
+            f"Your pool of {total_dice} dice makes success very unlikely against this challenge."
         )
 
     return {
