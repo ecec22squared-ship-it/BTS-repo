@@ -16,24 +16,45 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useGameStore } from '../../src/stores/gameStore';
-import { useAuthStore } from '../../src/stores/authStore';
 import { StoryMessage } from '../../src/components/StoryMessage';
 import { DiceDisplay } from '../../src/components/DiceDisplay';
-import { Character, GameSession, DiceResult, GameMessage } from '../../src/types/game';
+import { GalaxyMapLoading } from '../../src/components/GalaxyMapLoading';
+import { Character, DiceResult, GameMessage } from '../../src/types/game';
+
+interface EnvironmentTheme {
+  type: string;
+  primary: string;
+  accent: string;
+  background: string;
+  border: string;
+  text_glow: string;
+  mood: string;
+}
+
+const DEFAULT_THEME: EnvironmentTheme = {
+  type: 'urban',
+  primary: '#00CED1',
+  accent: '#20B2AA',
+  background: '#0A0A14',
+  border: '#2F4F4F',
+  text_glow: '#40E0D0',
+  mood: 'neon-washed duracrete streets',
+};
 
 export default function GamePlay() {
   const { sessionId, characterId } = useLocalSearchParams();
   const { currentSession, loadGameSession, startGame, sendAction, characters, fetchCharacters } = useGameStore();
-  
+
   const [character, setCharacter] = useState<Character | null>(null);
-  const [messages, setMessages] = useState<GameMessage[]>([]);
+  const [messages, setMessages] = useState<Array<GameMessage & { dice_line?: string }>>([]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [lastDiceResult, setLastDiceResult] = useState<DiceResult | null>(null);
   const [showSkills, setShowSkills] = useState(false);
   const [selectedSkill, setSelectedSkill] = useState<string | null>(null);
-  
+  const [envTheme, setEnvTheme] = useState<EnvironmentTheme>(DEFAULT_THEME);
+
   const scrollViewRef = useRef<ScrollView>(null);
 
   useEffect(() => {
@@ -43,29 +64,25 @@ export default function GamePlay() {
   const initGame = async () => {
     setIsLoading(true);
     try {
-      // Load session
       if (sessionId) {
         await loadGameSession(sessionId as string);
       }
-      
-      // Get character
       if (characters.length === 0) {
         await fetchCharacters();
       }
       const char = useGameStore.getState().characters.find(c => c.character_id === characterId);
       if (char) setCharacter(char);
-      
-      // Get current session
+
       const session = useGameStore.getState().currentSession;
-      
-      // If no history, start the game
+
       if (session && session.game_history.length === 0) {
         const result = await startGame(session.session_id);
         setMessages([{
-          role: 'game_master',
+          role: 'game_master' as const,
           content: result.opening,
           timestamp: new Date().toISOString()
         }]);
+        if (result.environment_theme) setEnvTheme(result.environment_theme);
       } else if (session) {
         setMessages(session.game_history);
       }
@@ -78,46 +95,48 @@ export default function GamePlay() {
 
   const handleSendAction = async () => {
     if (!inputText.trim() || !currentSession) return;
-    
+
     const action = inputText.trim();
     setInputText('');
     setIsSending(true);
     Keyboard.dismiss();
-    
-    // Add player message immediately
-    const playerMessage: GameMessage = {
+
+    const playerMessage: GameMessage & { dice_line?: string } = {
       role: 'player',
       content: action,
       timestamp: new Date().toISOString()
     };
     setMessages(prev => [...prev, playerMessage]);
-    
+
     try {
       const result = await sendAction(
         currentSession.session_id,
         action,
         selectedSkill || undefined
       );
-      
-      // Add GM response
-      const gmMessage: GameMessage = {
+
+      const gmMessage: GameMessage & { dice_line?: string } = {
         role: 'game_master',
         content: result.gm_response,
+        dice_line: result.dice_line || undefined,
         timestamp: new Date().toISOString()
       };
       setMessages(prev => [...prev, gmMessage]);
-      
-      // Update dice result if any
+
       if (result.dice_result) {
         setLastDiceResult(result.dice_result);
       } else {
         setLastDiceResult(null);
       }
-      
+
+      // Update environment theme if changed
+      if (result.environment_theme) {
+        setEnvTheme(result.environment_theme);
+      }
+
       setSelectedSkill(null);
     } catch (error) {
       console.error('Send action error:', error);
-      // Remove the player message on error
       setMessages(prev => prev.slice(0, -1));
     } finally {
       setIsSending(false);
@@ -125,7 +144,6 @@ export default function GamePlay() {
   };
 
   useEffect(() => {
-    // Auto-scroll to bottom when messages change
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
     }, 100);
@@ -133,10 +151,9 @@ export default function GamePlay() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor: envTheme.background }]}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#FFD700" />
-          <Text style={styles.loadingText}>Preparing your adventure...</Text>
+          <GalaxyMapLoading accentColor={envTheme.primary} />
         </View>
       </SafeAreaView>
     );
@@ -144,39 +161,52 @@ export default function GamePlay() {
 
   const careerSkills = character?.skills.filter(s => s.rank > 0) || [];
 
+  // Dynamic styles based on environment
+  const dynamicStyles = {
+    headerBorder: { borderBottomColor: `${envTheme.border}80` },
+    statusBarBg: { backgroundColor: `${envTheme.primary}10` },
+    locationText: { color: envTheme.primary },
+    inputBorder: { borderTopColor: `${envTheme.border}80` },
+    sendBtn: { backgroundColor: envTheme.primary },
+    skillChipSelected: { backgroundColor: envTheme.primary },
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: envTheme.background }]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
         keyboardVerticalOffset={0}
       >
-        {/* Header */}
-        <View style={styles.header}>
+        {/* Header with environment color */}
+        <View style={[styles.header, dynamicStyles.headerBorder]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
-            <Text style={styles.locationText} numberOfLines={1}>
+            <Text style={[styles.locationText, dynamicStyles.locationText]} numberOfLines={1}>
               {currentSession?.current_location || 'Unknown Location'}
+            </Text>
+            <Text style={[styles.moodText, { color: `${envTheme.accent}99` }]}>
+              {envTheme.mood}
             </Text>
           </View>
           <TouchableOpacity
             onPress={() => router.push('/game/dice')}
             style={styles.diceButton}
           >
-            <Ionicons name="dice" size={24} color="#FFD700" />
+            <Ionicons name="dice" size={24} color={envTheme.primary} />
           </TouchableOpacity>
         </View>
 
         {/* Character Status Bar */}
         {character && (
-          <View style={styles.statusBar}>
+          <View style={[styles.statusBar, dynamicStyles.statusBarBg, { borderBottomColor: `${envTheme.border}60` }]}>
             <View style={styles.statusItem}>
               {character.portrait_base64 ? (
                 <Image
                   source={{ uri: `data:image/png;base64,${character.portrait_base64}` }}
-                  style={styles.miniPortrait}
+                  style={[styles.miniPortrait, { borderColor: envTheme.primary }]}
                 />
               ) : (
                 <View style={styles.miniPortraitPlaceholder}>
@@ -209,17 +239,26 @@ export default function GamePlay() {
           contentContainerStyle={styles.storyContent}
         >
           {messages.map((message, index) => (
-            <StoryMessage key={index} message={message} />
-          ))}
-          
-          {isSending && (
-            <View style={styles.typingIndicator}>
-              <ActivityIndicator size="small" color="#FFD700" />
-              <Text style={styles.typingText}>Game Master is responding...</Text>
+            <View key={index}>
+              <StoryMessage message={message} envTheme={envTheme} />
+              {/* Dice line rendered separately below GM messages */}
+              {message.dice_line && (
+                <View style={[styles.diceLineContainer, { borderColor: `${envTheme.accent}60` }]}>
+                  <Ionicons name="dice" size={14} color={envTheme.accent} />
+                  <Text style={[styles.diceLineText, { color: envTheme.accent }]}>
+                    {message.dice_line}
+                  </Text>
+                </View>
+              )}
             </View>
+          ))}
+
+          {/* Galaxy Map Loading while AI thinks */}
+          {isSending && (
+            <GalaxyMapLoading accentColor={envTheme.primary} />
           )}
-          
-          {lastDiceResult && (
+
+          {lastDiceResult && !isSending && (
             <View style={styles.diceResultContainer}>
               <DiceDisplay result={lastDiceResult} />
             </View>
@@ -228,9 +267,9 @@ export default function GamePlay() {
 
         {/* Skills Panel */}
         {showSkills && (
-          <View style={styles.skillsPanel}>
+          <View style={[styles.skillsPanel, { borderTopColor: `${envTheme.border}80` }]}>
             <View style={styles.skillsPanelHeader}>
-              <Text style={styles.skillsPanelTitle}>Use a Skill</Text>
+              <Text style={[styles.skillsPanelTitle, { color: envTheme.primary }]}>Use a Skill</Text>
               <TouchableOpacity onPress={() => setShowSkills(false)}>
                 <Ionicons name="close" size={24} color="#fff" />
               </TouchableOpacity>
@@ -242,7 +281,7 @@ export default function GamePlay() {
                     key={skill.name}
                     style={[
                       styles.skillChip,
-                      selectedSkill === skill.name && styles.skillChipSelected,
+                      selectedSkill === skill.name && dynamicStyles.skillChipSelected,
                     ]}
                     onPress={() => {
                       setSelectedSkill(selectedSkill === skill.name ? null : skill.name);
@@ -262,21 +301,21 @@ export default function GamePlay() {
         )}
 
         {/* Input Area */}
-        <View style={styles.inputContainer}>
+        <View style={[styles.inputContainer, dynamicStyles.inputBorder]}>
           <TouchableOpacity
-            style={styles.skillToggle}
+            style={[styles.skillToggle, selectedSkill && { borderColor: envTheme.primary }]}
             onPress={() => setShowSkills(!showSkills)}
           >
             <Ionicons
               name={showSkills ? 'chevron-down' : 'chevron-up'}
               size={20}
-              color={selectedSkill ? '#FFD700' : '#888'}
+              color={selectedSkill ? envTheme.primary : '#888'}
             />
-            <Text style={[styles.skillToggleText, selectedSkill && styles.skillToggleActive]}>
+            <Text style={[styles.skillToggleText, selectedSkill && { color: envTheme.primary }]}>
               {selectedSkill || 'Skill'}
             </Text>
           </TouchableOpacity>
-          
+
           <TextInput
             style={styles.input}
             value={inputText}
@@ -286,9 +325,13 @@ export default function GamePlay() {
             multiline
             maxLength={500}
           />
-          
+
           <TouchableOpacity
-            style={[styles.sendButton, (!inputText.trim() || isSending) && styles.sendButtonDisabled]}
+            style={[
+              styles.sendButton,
+              dynamicStyles.sendBtn,
+              (!inputText.trim() || isSending) && styles.sendButtonDisabled
+            ]}
             onPress={handleSendAction}
             disabled={!inputText.trim() || isSending}
           >
@@ -307,17 +350,11 @@ export default function GamePlay() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0a0a0f',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  loadingText: {
-    color: '#FFD700',
-    marginTop: 16,
-    fontSize: 16,
   },
   header: {
     flexDirection: 'row',
@@ -325,178 +362,88 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.1)',
   },
-  backButton: {
-    padding: 8,
-  },
-  headerCenter: {
-    flex: 1,
-    marginHorizontal: 12,
-  },
-  locationText: {
-    color: '#FFD700',
-    fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  diceButton: {
-    padding: 8,
-  },
+  backButton: { padding: 8 },
+  headerCenter: { flex: 1, marginHorizontal: 12, alignItems: 'center' },
+  locationText: { fontSize: 15, fontWeight: 'bold', textAlign: 'center' },
+  moodText: { fontSize: 10, fontStyle: 'italic', marginTop: 2 },
+  diceButton: { padding: 8 },
   statusBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: 'rgba(255,255,255,0.05)',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.1)',
   },
-  statusItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
+  statusItem: { flexDirection: 'row', alignItems: 'center' },
   miniPortrait: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: '#FFD700',
+    width: 32, height: 32, borderRadius: 16, marginRight: 8, borderWidth: 1,
   },
   miniPortraitPlaceholder: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 32, height: 32, borderRadius: 16,
     backgroundColor: 'rgba(255,255,255,0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 8,
+    justifyContent: 'center', alignItems: 'center', marginRight: 8,
   },
-  characterName: {
-    color: '#fff',
-    fontSize: 14,
+  characterName: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  statusBars: { flexDirection: 'row' },
+  statusBarItem: { flexDirection: 'row', alignItems: 'center', marginLeft: 16 },
+  statusValue: { color: '#fff', fontSize: 12, marginLeft: 4 },
+  storyContainer: { flex: 1 },
+  storyContent: { padding: 16 },
+  diceLineContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    marginVertical: 4,
+    marginLeft: 12,
+    borderLeftWidth: 2,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: 4,
+  },
+  diceLineText: {
+    fontSize: 11,
     fontWeight: '600',
-  },
-  statusBars: {
-    flexDirection: 'row',
-  },
-  statusBarItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 16,
-  },
-  statusValue: {
-    color: '#fff',
-    fontSize: 12,
-    marginLeft: 4,
-  },
-  storyContainer: {
-    flex: 1,
-  },
-  storyContent: {
-    padding: 16,
-  },
-  typingIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    backgroundColor: 'rgba(255, 215, 0, 0.1)',
-    borderRadius: 12,
-    marginTop: 8,
-  },
-  typingText: {
-    color: '#FFD700',
     marginLeft: 8,
-    fontSize: 14,
+    fontFamily: 'monospace',
+    letterSpacing: 0.3,
   },
-  diceResultContainer: {
-    marginTop: 8,
-  },
+  diceResultContainer: { marginTop: 8 },
   skillsPanel: {
     backgroundColor: 'rgba(255,255,255,0.05)',
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.1)',
     padding: 12,
   },
   skillsPanelHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8,
   },
-  skillsPanelTitle: {
-    color: '#FFD700',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  skillsRow: {
-    flexDirection: 'row',
-  },
+  skillsPanelTitle: { fontSize: 14, fontWeight: 'bold' },
+  skillsRow: { flexDirection: 'row' },
   skillChip: {
     backgroundColor: 'rgba(255,255,255,0.1)',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    marginRight: 8,
+    paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, marginRight: 8,
   },
-  skillChipSelected: {
-    backgroundColor: '#FFD700',
-  },
-  skillChipText: {
-    color: '#fff',
-    fontSize: 13,
-  },
-  skillChipTextSelected: {
-    color: '#000',
-    fontWeight: '600',
-  },
+  skillChipText: { color: '#fff', fontSize: 13 },
+  skillChipTextSelected: { color: '#000', fontWeight: '600' },
   inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    padding: 12,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.1)',
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    flexDirection: 'row', alignItems: 'flex-end',
+    padding: 12, borderTopWidth: 1, backgroundColor: 'rgba(0,0,0,0.5)',
   },
   skillToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row', alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.1)',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    marginRight: 8,
+    paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8, marginRight: 8,
+    borderWidth: 1, borderColor: 'transparent',
   },
-  skillToggleText: {
-    color: '#888',
-    fontSize: 12,
-    marginLeft: 4,
-  },
-  skillToggleActive: {
-    color: '#FFD700',
-  },
+  skillToggleText: { color: '#888', fontSize: 12, marginLeft: 4 },
   input: {
-    flex: 1,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    color: '#fff',
-    fontSize: 15,
-    maxHeight: 100,
-    marginRight: 8,
+    flex: 1, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 20,
+    paddingHorizontal: 16, paddingVertical: 10, color: '#fff', fontSize: 15,
+    maxHeight: 100, marginRight: 8,
   },
   sendButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#FFD700',
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center',
   },
-  sendButtonDisabled: {
-    opacity: 0.5,
-  },
+  sendButtonDisabled: { opacity: 0.5 },
 });

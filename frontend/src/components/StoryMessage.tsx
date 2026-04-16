@@ -3,23 +3,46 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { GameMessage } from '../types/game';
 
-interface StoryMessageProps {
-  message: GameMessage;
+interface EnvironmentTheme {
+  type: string;
+  primary: string;
+  accent: string;
+  background: string;
+  border: string;
+  text_glow: string;
+  mood: string;
 }
 
-export const StoryMessage: React.FC<StoryMessageProps> = ({ message }) => {
+interface StoryMessageProps {
+  message: GameMessage;
+  envTheme?: EnvironmentTheme;
+}
+
+export const StoryMessage: React.FC<StoryMessageProps> = ({ message, envTheme }) => {
   const isGameMaster = message.role === 'game_master';
   const isSystem = message.role === 'system';
 
+  const gmColor = envTheme?.primary || '#FFD700';
+  const gmAccent = envTheme?.accent || '#DAA520';
+  const gmBorder = envTheme?.border || '#8B6914';
+
   return (
-    <View style={[styles.container, isGameMaster ? styles.gmContainer : styles.playerContainer]}>
+    <View style={[
+      styles.container,
+      isGameMaster
+        ? [styles.gmContainer, { borderLeftColor: gmColor, backgroundColor: `${gmColor}12` }]
+        : styles.playerContainer
+    ]}>
       <View style={styles.header}>
         <Ionicons
           name={isGameMaster ? 'planet' : isSystem ? 'information-circle' : 'person'}
           size={16}
-          color={isGameMaster ? '#FFD700' : isSystem ? '#03A9F4' : '#4CAF50'}
+          color={isGameMaster ? gmColor : isSystem ? '#03A9F4' : '#4CAF50'}
         />
-        <Text style={[styles.roleText, isGameMaster ? styles.gmRole : styles.playerRole]}>
+        <Text style={[
+          styles.roleText,
+          isGameMaster ? { color: gmColor } : styles.playerRole
+        ]}>
           {isGameMaster ? 'Game Master' : isSystem ? 'System' : 'You'}
         </Text>
       </View>
@@ -36,9 +59,7 @@ const styles = StyleSheet.create({
     maxWidth: '95%',
   },
   gmContainer: {
-    backgroundColor: 'rgba(255, 215, 0, 0.1)',
     borderLeftWidth: 3,
-    borderLeftColor: '#FFD700',
     alignSelf: 'flex-start',
   },
   playerContainer: {
@@ -56,9 +77,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
     marginLeft: 6,
-  },
-  gmRole: {
-    color: '#FFD700',
   },
   playerRole: {
     color: '#4CAF50',

@@ -207,6 +207,36 @@ export default function CharacterDetail() {
           </View>
         </View>
 
+        {/* Equipment */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Equipment</Text>
+          <View style={styles.equipmentList}>
+            {(character.equipment || []).map((item: any, index: number) => {
+              const isObj = typeof item === 'object';
+              const name = isObj ? item.name : item;
+              const category = isObj ? item.category : 'gear';
+              const description = isObj ? item.description : '';
+              const catIcon = category === 'weapon' ? 'flash' : category === 'armor' ? 'shield' : 'cube';
+              const catColor = category === 'weapon' ? '#F44336' : category === 'armor' ? '#03A9F4' : '#FFD700';
+              return (
+                <View key={index} style={styles.equipmentItem}>
+                  <View style={[styles.equipmentIcon, { backgroundColor: `${catColor}20` }]}>
+                    <Ionicons name={catIcon as any} size={18} color={catColor} />
+                  </View>
+                  <View style={styles.equipmentInfo}>
+                    <Text style={styles.equipmentName}>{name}</Text>
+                    {description ? <Text style={styles.equipmentDesc}>{description}</Text> : null}
+                  </View>
+                  <Text style={[styles.equipmentCategory, { color: catColor }]}>{category}</Text>
+                </View>
+              );
+            })}
+            {(!character.equipment || character.equipment.length === 0) && (
+              <Text style={styles.emptyEquipment}>No equipment</Text>
+            )}
+          </View>
+        </View>
+
         {/* Resources */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Resources</Text>
@@ -464,6 +494,51 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     backgroundColor: 'rgba(255,255,255,0.05)',
     borderRadius: 12,
+    padding: 16,
+  },
+  equipmentList: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  equipmentItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
+  },
+  equipmentIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  equipmentInfo: {
+    flex: 1,
+  },
+  equipmentName: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  equipmentDesc: {
+    color: '#888',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  equipmentCategory: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  emptyEquipment: {
+    color: '#666',
+    fontSize: 14,
+    textAlign: 'center',
     padding: 16,
   },
   playButton: {

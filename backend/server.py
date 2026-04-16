@@ -13,6 +13,7 @@ from datetime import datetime, timezone, timedelta
 import httpx
 import random
 import base64
+import json
 
 # Load environment variables
 ROOT_DIR = Path(__file__).parent
@@ -71,7 +72,7 @@ class CharacterStats(BaseModel):
 class CharacterSkill(BaseModel):
     name: str
     rank: int = 0
-    characteristic: str  # Which stat it's based on
+    characteristic: str
 
 class CharacterHealth(BaseModel):
     wounds: int = 0
@@ -82,6 +83,11 @@ class CharacterHealth(BaseModel):
 class CharacterExperience(BaseModel):
     total: int = 0
     available: int = 0
+
+class EquipmentItem(BaseModel):
+    name: str
+    category: str  # weapon, armor, gear, tool
+    description: str
 
 class Character(BaseModel):
     character_id: str = Field(default_factory=lambda: f"char_{uuid.uuid4().hex[:12]}")
@@ -94,7 +100,7 @@ class Character(BaseModel):
     skills: List[CharacterSkill] = Field(default_factory=list)
     health: CharacterHealth = Field(default_factory=CharacterHealth)
     experience: CharacterExperience = Field(default_factory=CharacterExperience)
-    equipment: List[str] = Field(default_factory=list)
+    equipment: List[Dict[str, str]] = Field(default_factory=list)
     credits: int = 500
     portrait_base64: Optional[str] = None
     backstory: Optional[str] = None
@@ -108,8 +114,9 @@ class CharacterCreate(BaseModel):
     backstory: Optional[str] = None
 
 class GameMessage(BaseModel):
-    role: str  # "player", "game_master", "system"
+    role: str
     content: str
+    dice_line: Optional[str] = None
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class Enemy(BaseModel):
@@ -131,6 +138,7 @@ class GameSession(BaseModel):
     character_id: str
     story_context: List[str] = Field(default_factory=list)
     current_location: str = "Nar Shaddaa - The Smuggler's Moon"
+    environment_type: str = "urban"
     npcs: List[Dict[str, Any]] = Field(default_factory=list)
     combat_state: CombatState = Field(default_factory=CombatState)
     game_history: List[GameMessage] = Field(default_factory=list)
@@ -138,13 +146,13 @@ class GameSession(BaseModel):
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class DiceRoll(BaseModel):
-    ability: int = 0  # Green dice
-    proficiency: int = 0  # Yellow dice
-    difficulty: int = 0  # Purple dice
-    challenge: int = 0  # Red dice
-    boost: int = 0  # Blue dice
-    setback: int = 0  # Black dice
-    force: int = 0  # White dice
+    ability: int = 0
+    proficiency: int = 0
+    difficulty: int = 0
+    challenge: int = 0
+    boost: int = 0
+    setback: int = 0
+    force: int = 0
 
 class DiceResult(BaseModel):
     successes: int = 0
@@ -165,7 +173,7 @@ class PlayerAction(BaseModel):
     skill: Optional[str] = None
 
 # ============================================================================
-# Game Data - Species, Careers, Skills
+# Game Data - Species, Careers, Skills, Equipment, Environments
 # ============================================================================
 
 SPECIES_DATA = {
@@ -175,7 +183,8 @@ SPECIES_DATA = {
         "starting_xp": 110,
         "wound_bonus": 0,
         "strain_bonus": 0,
-        "special": "One free rank in two non-career skills"
+        "special": "One free rank in two non-career skills",
+        "appearance": "Varied skin tones, builds and hair colors. Adaptable and numerous."
     },
     "Twi'lek": {
         "description": "Colorful-skinned beings with head-tails called lekku, known for their grace.",
@@ -183,7 +192,8 @@ SPECIES_DATA = {
         "starting_xp": 100,
         "wound_bonus": -1,
         "strain_bonus": 1,
-        "special": "One free rank in Charm or Deception"
+        "special": "One free rank in Charm or Deception",
+        "appearance": "Brightly colored skin (blue, green, red, orange), twin head-tails (lekku), expressive eyes."
     },
     "Wookiee": {
         "description": "Towering, fur-covered warriors from Kashyyyk with incredible strength.",
@@ -191,7 +201,8 @@ SPECIES_DATA = {
         "starting_xp": 90,
         "wound_bonus": 4,
         "strain_bonus": -2,
-        "special": "One free rank in Brawl"
+        "special": "One free rank in Brawl",
+        "appearance": "Over 2 meters tall, covered in thick brown/auburn/white fur, powerful build, fierce eyes."
     },
     "Rodian": {
         "description": "Green-skinned hunters from Rodia, known as bounty hunters across the galaxy.",
@@ -199,7 +210,8 @@ SPECIES_DATA = {
         "starting_xp": 100,
         "wound_bonus": 0,
         "strain_bonus": 0,
-        "special": "One free rank in Survival"
+        "special": "One free rank in Survival",
+        "appearance": "Green scaly skin, large multifaceted eyes, snout-like face, suction-cupped fingers, antennae."
     },
     "Bothan": {
         "description": "Furry, politically-minded species renowned for their spy networks.",
@@ -207,7 +219,8 @@ SPECIES_DATA = {
         "starting_xp": 100,
         "wound_bonus": -1,
         "strain_bonus": 1,
-        "special": "One free rank in Streetwise"
+        "special": "One free rank in Streetwise",
+        "appearance": "Short tan/brown fur, tapering face, large pointed ears, sharp inquisitive eyes."
     },
     "Droid": {
         "description": "Mechanical beings with varied programming and capabilities.",
@@ -215,7 +228,8 @@ SPECIES_DATA = {
         "starting_xp": 175,
         "wound_bonus": 0,
         "strain_bonus": 0,
-        "special": "Immune to mind-affecting abilities, does not heal naturally"
+        "special": "Immune to mind-affecting abilities, does not heal naturally",
+        "appearance": "Metallic chassis, photoreceptor eyes that glow, varied plating from polished to battle-scarred."
     }
 }
 
@@ -250,6 +264,241 @@ CAREER_DATA = {
         "career_skills": ["Astrogation", "Computers", "Coordination", "Discipline", "Knowledge (Outer Rim)", "Mechanics", "Perception", "Piloting (Planetary)"],
         "specializations": ["Mechanic", "Outlaw Tech", "Slicer"]
     }
+}
+
+# ============================================================================
+# Starter Equipment Packages
+# ============================================================================
+
+CAREER_EQUIPMENT = {
+    "Bounty Hunter": {
+        "base": [
+            {"name": "Blaster Rifle", "category": "weapon", "description": "BlasTech E-11 blaster rifle, reliable and deadly at range"},
+            {"name": "Heavy Clothing", "category": "armor", "description": "Reinforced spacer garb, +1 soak"},
+            {"name": "Binder Cuffs", "category": "gear", "description": "Durasteel restraints for live captures"},
+            {"name": "Comlink (handheld)", "category": "gear", "description": "Standard frequency communicator"},
+            {"name": "Bounty Hunter License", "category": "gear", "description": "Imperial Guild authorization chip"},
+        ],
+        "Assassin": [
+            {"name": "Vibroknife", "category": "weapon", "description": "Molecularly sharpened blade, near-silent kills"},
+            {"name": "Optical Camouflage Cloak", "category": "gear", "description": "Light-bending shroud, +1 Boost to Stealth"},
+        ],
+        "Gadgeteer": [
+            {"name": "Extra Reload", "category": "gear", "description": "Spare power packs and ammunition"},
+            {"name": "Utility Belt", "category": "gear", "description": "Modular tool harness with built-in scanner"},
+        ],
+        "Survivalist": [
+            {"name": "Survival Knife", "category": "weapon", "description": "Durasteel bush knife with fire starter pommel"},
+            {"name": "Wilderness Ration Pack", "category": "gear", "description": "7-day concentrated sustenance pack"},
+        ],
+    },
+    "Colonist": {
+        "base": [
+            {"name": "Hold-out Blaster", "category": "weapon", "description": "Compact CDEF blaster, easily concealed"},
+            {"name": "Datapad", "category": "gear", "description": "Portable computer terminal with encrypted storage"},
+            {"name": "Comlink (handheld)", "category": "gear", "description": "Standard frequency communicator"},
+            {"name": "Fine Clothing", "category": "armor", "description": "Well-tailored Outer Rim fashion, projects authority"},
+        ],
+        "Doctor": [
+            {"name": "Medpac", "category": "gear", "description": "Field surgery kit with bacta patches and stim injectors"},
+            {"name": "Stimpack (x3)", "category": "gear", "description": "Emergency healing syringes, recover 5 wounds each"},
+        ],
+        "Politico": [
+            {"name": "Holo-Messenger", "category": "gear", "description": "Encrypted portable hologram projector"},
+            {"name": "Forged Credentials", "category": "gear", "description": "High-quality falsified Imperial documentation"},
+        ],
+        "Scholar": [
+            {"name": "Holocron Fragment", "category": "gear", "description": "Ancient data crystal containing lost knowledge"},
+            {"name": "Scanner", "category": "gear", "description": "Multi-spectrum analysis device"},
+        ],
+    },
+    "Explorer": {
+        "base": [
+            {"name": "Blaster Pistol", "category": "weapon", "description": "Reliable DL-18 sidearm for frontier survival"},
+            {"name": "Heavy Clothing", "category": "armor", "description": "Environment-adapted spacer garb"},
+            {"name": "Backpack", "category": "gear", "description": "Durable field pack with thermal lining"},
+            {"name": "Macrobinoculars", "category": "gear", "description": "Long-range optical scanner with night vision"},
+            {"name": "Comlink (handheld)", "category": "gear", "description": "Standard frequency communicator"},
+        ],
+        "Fringer": [
+            {"name": "Vibro-Ax", "category": "weapon", "description": "Broad-bladed survival tool and fearsome weapon"},
+            {"name": "Emergency Repair Kit", "category": "gear", "description": "Compact hull-patching and engine tools"},
+        ],
+        "Scout": [
+            {"name": "Electrobinoculars", "category": "gear", "description": "Advanced scouting optics with rangefinder and recording"},
+            {"name": "Glow Rod (x3)", "category": "gear", "description": "Long-lasting portable illumination sticks"},
+        ],
+        "Trader": [
+            {"name": "Encrypted Ledger", "category": "gear", "description": "Secure transaction records and market data"},
+            {"name": "Falsified Cargo Manifest", "category": "gear", "description": "Blank Imperial cargo documentation"},
+        ],
+    },
+    "Hired Gun": {
+        "base": [
+            {"name": "Blaster Carbine", "category": "weapon", "description": "SoroSuub EE-3, compact but punishing mid-range fire"},
+            {"name": "Vibrosword", "category": "weapon", "description": "Durasteel blade with vibro-generator, for when it gets personal"},
+            {"name": "Padded Armor", "category": "armor", "description": "Ballistic-weave vest, +2 soak"},
+            {"name": "Comlink (handheld)", "category": "gear", "description": "Standard frequency communicator"},
+        ],
+        "Bodyguard": [
+            {"name": "Shield Gauntlet", "category": "armor", "description": "Wrist-mounted deflector emitter"},
+            {"name": "Stimpack (x3)", "category": "gear", "description": "Emergency healing syringes"},
+        ],
+        "Marauder": [
+            {"name": "Vibroknucklers", "category": "weapon", "description": "Fist-mounted vibro-blades for devastating brawling"},
+            {"name": "Battle Scars", "category": "gear", "description": "Marks of countless fights, intimidation +1 Boost"},
+        ],
+        "Mercenary Soldier": [
+            {"name": "Frag Grenade (x2)", "category": "weapon", "description": "Anti-personnel explosive ordinance"},
+            {"name": "Field Rations", "category": "gear", "description": "Military-grade sustenance, 14 days"},
+        ],
+    },
+    "Smuggler": {
+        "base": [
+            {"name": "Heavy Blaster Pistol", "category": "weapon", "description": "Modified DL-44, the smuggler's best friend"},
+            {"name": "Concealed Holster", "category": "gear", "description": "Quick-draw magnetic holster, hidden under jacket"},
+            {"name": "Comlink (handheld)", "category": "gear", "description": "Standard frequency communicator"},
+            {"name": "Sabacc Deck", "category": "gear", "description": "Well-worn card set, weighted slightly in your favor"},
+            {"name": "Spacer's Jacket", "category": "armor", "description": "Leather duster with hidden pockets, +1 soak"},
+        ],
+        "Pilot": [
+            {"name": "Flight Suit", "category": "armor", "description": "Pressurized pilot suit with emergency rebreather"},
+            {"name": "Astromech Droid Interface", "category": "gear", "description": "Portable R-series datalink adapter"},
+        ],
+        "Scoundrel": [
+            {"name": "Disguise Kit", "category": "gear", "description": "Facial prosthetics, hair dyes, and voice modulator"},
+            {"name": "Loaded Chance Cube", "category": "gear", "description": "Always lands on your color, mostly"},
+        ],
+        "Thief": [
+            {"name": "Lockpicking Tools", "category": "gear", "description": "Electronic lockbreaker and mechanical picks"},
+            {"name": "Climbing Gear", "category": "gear", "description": "Magnetic grips and synthrope coil"},
+        ],
+    },
+    "Technician": {
+        "base": [
+            {"name": "Blaster Pistol", "category": "weapon", "description": "Simple but reliable sidearm"},
+            {"name": "Tool Kit", "category": "gear", "description": "Comprehensive mechanic's toolkit with hydrospanner"},
+            {"name": "Datapad", "category": "gear", "description": "Portable terminal with technical schematics library"},
+            {"name": "Comlink (handheld)", "category": "gear", "description": "Standard frequency communicator"},
+            {"name": "Utility Jumpsuit", "category": "armor", "description": "Fire-resistant workwear with tool loops"},
+        ],
+        "Mechanic": [
+            {"name": "Emergency Repair Kit", "category": "gear", "description": "Heavy-duty hull patching and welding set"},
+            {"name": "Salvaged Droid Parts", "category": "gear", "description": "Assorted servos, processors and power cells"},
+        ],
+        "Outlaw Tech": [
+            {"name": "Weapon Modding Kit", "category": "gear", "description": "Aftermarket blaster modification tools"},
+            {"name": "Contraband Scanner Jammer", "category": "gear", "description": "Scrambles Imperial cargo scanners"},
+        ],
+        "Slicer": [
+            {"name": "Slicer Gear", "category": "gear", "description": "Advanced code-breaking rig and data spikes"},
+            {"name": "Decoy Transponder", "category": "gear", "description": "Ship identity spoofer, one-use per transponder code"},
+        ],
+    },
+}
+
+# ============================================================================
+# Environment Themes
+# ============================================================================
+
+ENVIRONMENT_THEMES = {
+    "cantina": {
+        "type": "cantina",
+        "primary": "#FF6B35",
+        "accent": "#FFB347",
+        "background": "#1A0A00",
+        "border": "#8B4513",
+        "text_glow": "#FF8C00",
+        "mood": "smoky amber warmth",
+    },
+    "desert": {
+        "type": "desert",
+        "primary": "#EDC9AF",
+        "accent": "#C2A36E",
+        "background": "#1A1200",
+        "border": "#8B7355",
+        "text_glow": "#DAA520",
+        "mood": "scorching sandstorm haze",
+    },
+    "jungle": {
+        "type": "jungle",
+        "primary": "#2ECC71",
+        "accent": "#27AE60",
+        "background": "#001A0A",
+        "border": "#1B4332",
+        "text_glow": "#00FF7F",
+        "mood": "dense bioluminescent canopy",
+    },
+    "space": {
+        "type": "space",
+        "primary": "#7B68EE",
+        "accent": "#4169E1",
+        "background": "#050510",
+        "border": "#191970",
+        "text_glow": "#6A5ACD",
+        "mood": "cold starlight void",
+    },
+    "urban": {
+        "type": "urban",
+        "primary": "#00CED1",
+        "accent": "#20B2AA",
+        "background": "#0A0A14",
+        "border": "#2F4F4F",
+        "text_glow": "#40E0D0",
+        "mood": "neon-washed duracrete streets",
+    },
+    "ruins": {
+        "type": "ruins",
+        "primary": "#BC8F8F",
+        "accent": "#A0522D",
+        "background": "#0F0A0A",
+        "border": "#4A3728",
+        "text_glow": "#D2691E",
+        "mood": "crumbling ancient stone",
+    },
+    "ice": {
+        "type": "ice",
+        "primary": "#B0E0E6",
+        "accent": "#87CEEB",
+        "background": "#040A10",
+        "border": "#4682B4",
+        "text_glow": "#ADD8E6",
+        "mood": "biting glacial wind",
+    },
+    "industrial": {
+        "type": "industrial",
+        "primary": "#CD853F",
+        "accent": "#D2691E",
+        "background": "#0A0800",
+        "border": "#8B6914",
+        "text_glow": "#FF8C00",
+        "mood": "grinding machinery and sparks",
+    },
+    "dark_side": {
+        "type": "dark_side",
+        "primary": "#DC143C",
+        "accent": "#8B0000",
+        "background": "#0A0005",
+        "border": "#4B0020",
+        "text_glow": "#FF0000",
+        "mood": "oppressive dark side energy",
+    },
+}
+
+# Location to environment mapping
+LOCATION_ENVIRONMENTS = {
+    "Nar Shaddaa - The Smuggler's Moon": "urban",
+    "Kessel - Spice Mining World": "industrial",
+    "Ryloth - Twi'lek Homeworld": "desert",
+    "Ord Mantell - Scrapyard Planet": "industrial",
+    "Dathomir - Nightsister Domain": "dark_side",
+    "Lothal - Outer Rim Frontier": "jungle",
+    "Florrum - Pirate Haven": "desert",
+    "Takodana - Maz Kanata's Castle": "jungle",
+    "Jakku - Desert Wasteland": "desert",
+    "Vandor - Frontier World": "ice",
+    "Bracca - Ship Breaking Yards": "industrial",
+    "Batuu - Black Spire Outpost": "ruins",
 }
 
 ALL_SKILLS = [
@@ -287,7 +536,6 @@ ALL_SKILLS = [
     {"name": "Vigilance", "characteristic": "willpower"}
 ]
 
-# Lesser-known Star Wars locations at the edge of the galaxy
 LOCATIONS = [
     "Nar Shaddaa - The Smuggler's Moon",
     "Kessel - Spice Mining World",
@@ -304,181 +552,220 @@ LOCATIONS = [
 ]
 
 # ============================================================================
+# Skill Auto-Detection for Contested Actions
+# ============================================================================
+
+ACTION_SKILL_MAP = {
+    "shoot": "Ranged (Light)", "fire": "Ranged (Light)", "blast": "Ranged (Heavy)",
+    "snipe": "Ranged (Heavy)", "aim": "Ranged (Light)",
+    "punch": "Brawl", "kick": "Brawl", "wrestle": "Brawl", "grapple": "Brawl",
+    "strike": "Melee", "slash": "Melee", "stab": "Melee", "swing": "Melee",
+    "sneak": "Stealth", "hide": "Stealth", "creep": "Stealth", "shadow": "Stealth",
+    "look": "Perception", "search": "Perception", "scan": "Perception", "notice": "Perception", "observe": "Perception",
+    "persuade": "Charm", "flirt": "Charm", "convince": "Charm", "sweet-talk": "Charm",
+    "lie": "Deception", "bluff": "Deception", "deceive": "Deception", "trick": "Deception",
+    "intimidate": "Coercion", "threaten": "Coercion", "frighten": "Coercion",
+    "negotiate": "Negotiation", "bargain": "Negotiation", "haggle": "Negotiation", "deal": "Negotiation",
+    "hack": "Computers", "slice": "Computers", "decrypt": "Computers",
+    "fly": "Piloting (Space)", "pilot": "Piloting (Space)", "navigate": "Astrogation",
+    "drive": "Piloting (Planetary)", "ride": "Piloting (Planetary)",
+    "repair": "Mechanics", "fix": "Mechanics", "tinker": "Mechanics", "modify": "Mechanics",
+    "heal": "Medicine", "treat": "Medicine", "bandage": "Medicine", "patch": "Medicine",
+    "climb": "Athletics", "jump": "Athletics", "run": "Athletics", "swim": "Athletics",
+    "dodge": "Coordination", "tumble": "Coordination", "evade": "Coordination",
+    "endure": "Resilience", "resist": "Discipline", "concentrate": "Discipline",
+    "pickpocket": "Skulduggery", "lockpick": "Skulduggery", "steal": "Skulduggery",
+    "survive": "Survival", "forage": "Survival", "track": "Survival",
+    "lead": "Leadership", "command": "Leadership", "rally": "Leadership",
+    "calm": "Cool", "compose": "Cool",
+    "streetwise": "Streetwise", "ask around": "Streetwise", "gather info": "Streetwise",
+}
+
+def detect_skill_from_action(action_text: str) -> Optional[str]:
+    """Auto-detect which skill a player's action should use"""
+    lower_action = action_text.lower()
+    for keyword, skill in ACTION_SKILL_MAP.items():
+        if keyword in lower_action:
+            return skill
+    return None
+
+def determine_difficulty(action_text: str, in_combat: bool) -> int:
+    """Determine dice difficulty based on action context"""
+    lower = action_text.lower()
+    if any(w in lower for w in ["easy", "simple", "basic"]):
+        return 1
+    if any(w in lower for w in ["hard", "difficult", "impossible", "daunting"]):
+        return 4
+    if any(w in lower for w in ["carefully", "cautious", "precise"]):
+        return 3
+    if in_combat:
+        return 2
+    return 2  # Average difficulty default
+
+def build_dice_pool_for_skill(character: dict, skill_name: str, difficulty: int) -> tuple:
+    """Build a dice pool for a skill check, returning (DiceRoll, skill_info)"""
+    skill = None
+    for s in character.get("skills", []):
+        if s["name"] == skill_name:
+            skill = s
+            break
+    if not skill:
+        # Fallback: unskilled check with base stat
+        for sk in ALL_SKILLS:
+            if sk["name"] == skill_name:
+                skill = {"name": skill_name, "rank": 0, "characteristic": sk["characteristic"]}
+                break
+    if not skill:
+        return None, None
+
+    char_value = character["stats"].get(skill["characteristic"], 2)
+    skill_rank = skill.get("rank", 0)
+
+    if char_value >= skill_rank:
+        proficiency = skill_rank
+        ability = char_value - skill_rank
+    else:
+        proficiency = char_value
+        ability = skill_rank - char_value
+
+    dice_roll = DiceRoll(ability=ability, proficiency=proficiency, difficulty=difficulty)
+    return dice_roll, skill
+
+def format_dice_line(skill_name: str, dice_roll: DiceRoll, result: DiceResult) -> str:
+    """Format the mechanical dice line for display"""
+    pool_parts = []
+    if dice_roll.proficiency > 0:
+        pool_parts.append(f"{dice_roll.proficiency} Proficiency")
+    if dice_roll.ability > 0:
+        pool_parts.append(f"{dice_roll.ability} Ability")
+    if dice_roll.boost > 0:
+        pool_parts.append(f"{dice_roll.boost} Boost")
+
+    opp_parts = []
+    if dice_roll.challenge > 0:
+        opp_parts.append(f"{dice_roll.challenge} Challenge")
+    if dice_roll.difficulty > 0:
+        opp_parts.append(f"{dice_roll.difficulty} Difficulty")
+    if dice_roll.setback > 0:
+        opp_parts.append(f"{dice_roll.setback} Setback")
+
+    pool_str = " + ".join(pool_parts) if pool_parts else "0"
+    opp_str = " + ".join(opp_parts) if opp_parts else "0"
+
+    outcome_parts = []
+    if result.net_successes != 0:
+        outcome_parts.append(f"{abs(result.net_successes)} {'Success' if result.net_successes > 0 else 'Failure'}{'es' if abs(result.net_successes) > 1 else ''}")
+    if result.net_advantages != 0:
+        outcome_parts.append(f"{abs(result.net_advantages)} {'Advantage' if result.net_advantages > 0 else 'Threat'}{'s' if abs(result.net_advantages) > 1 else ''}")
+    if result.triumphs > 0:
+        outcome_parts.append(f"{result.triumphs} Triumph{'s' if result.triumphs > 1 else ''}")
+    if result.despairs > 0:
+        outcome_parts.append(f"{result.despairs} Despair{'s' if result.despairs > 1 else ''}")
+
+    outcome_str = ", ".join(outcome_parts) if outcome_parts else "Wash"
+    verdict = "SUCCESS" if result.success else "FAILURE"
+
+    return f"[DICE: {skill_name} | {pool_str} vs {opp_str} | {verdict}: {outcome_str}]"
+
+def detect_environment_from_text(text: str) -> Optional[str]:
+    """Detect environment changes from narrative text"""
+    lower = text.lower()
+    env_keywords = {
+        "cantina": ["cantina", "bar", "tavern", "saloon", "pub", "drinking"],
+        "desert": ["desert", "sand", "dune", "scorching", "arid", "wasteland", "dry heat"],
+        "jungle": ["jungle", "forest", "trees", "canopy", "vegetation", "swamp", "marsh"],
+        "space": ["space", "hyperspace", "cockpit", "starship", "asteroid", "vacuum", "orbit"],
+        "urban": ["city", "street", "building", "neon", "alley", "market", "spaceport", "landing pad"],
+        "ruins": ["ruins", "temple", "ancient", "crumbling", "monument", "tomb", "chamber"],
+        "ice": ["ice", "snow", "frozen", "glacier", "cold", "blizzard", "tundra"],
+        "industrial": ["factory", "refinery", "machinery", "shipyard", "foundry", "scrapyard", "mine"],
+        "dark_side": ["dark side", "sith", "nightmare", "darkness", "corruption", "witch"],
+    }
+    for env, keywords in env_keywords.items():
+        if any(kw in lower for kw in keywords):
+            return env
+    return None
+
+
+# ============================================================================
 # Dice Rolling System - Edge of the Empire
 # ============================================================================
 
 def roll_ability_die():
-    """Green die - 8 sides"""
-    results = [
-        {},  # Blank
-        {"successes": 1},
-        {"successes": 1},
-        {"successes": 2},
-        {"advantages": 1},
-        {"advantages": 1},
-        {"successes": 1, "advantages": 1},
-        {"advantages": 2}
-    ]
+    results = [{}, {"successes": 1}, {"successes": 1}, {"successes": 2},
+               {"advantages": 1}, {"advantages": 1}, {"successes": 1, "advantages": 1}, {"advantages": 2}]
     return random.choice(results)
 
 def roll_proficiency_die():
-    """Yellow die - 12 sides"""
-    results = [
-        {},  # Blank
-        {"successes": 1},
-        {"successes": 1},
-        {"successes": 2},
-        {"successes": 2},
-        {"advantages": 1},
-        {"successes": 1, "advantages": 1},
-        {"successes": 1, "advantages": 1},
-        {"successes": 1, "advantages": 1},
-        {"advantages": 2},
-        {"advantages": 2},
-        {"triumphs": 1}  # Triumph also counts as a success
-    ]
+    results = [{}, {"successes": 1}, {"successes": 1}, {"successes": 2}, {"successes": 2},
+               {"advantages": 1}, {"successes": 1, "advantages": 1}, {"successes": 1, "advantages": 1},
+               {"successes": 1, "advantages": 1}, {"advantages": 2}, {"advantages": 2}, {"triumphs": 1}]
     return random.choice(results)
 
 def roll_difficulty_die():
-    """Purple die - 8 sides"""
-    results = [
-        {},  # Blank
-        {"failures": 1},
-        {"failures": 2},
-        {"threats": 1},
-        {"threats": 1},
-        {"threats": 1},
-        {"threats": 2},
-        {"failures": 1, "threats": 1}
-    ]
+    results = [{}, {"failures": 1}, {"failures": 2}, {"threats": 1}, {"threats": 1},
+               {"threats": 1}, {"threats": 2}, {"failures": 1, "threats": 1}]
     return random.choice(results)
 
 def roll_challenge_die():
-    """Red die - 12 sides"""
-    results = [
-        {},  # Blank
-        {"failures": 1},
-        {"failures": 1},
-        {"failures": 2},
-        {"failures": 2},
-        {"threats": 1},
-        {"threats": 1},
-        {"failures": 1, "threats": 1},
-        {"failures": 1, "threats": 1},
-        {"threats": 2},
-        {"threats": 2},
-        {"despairs": 1}  # Despair also counts as a failure
-    ]
+    results = [{}, {"failures": 1}, {"failures": 1}, {"failures": 2}, {"failures": 2},
+               {"threats": 1}, {"threats": 1}, {"failures": 1, "threats": 1},
+               {"failures": 1, "threats": 1}, {"threats": 2}, {"threats": 2}, {"despairs": 1}]
     return random.choice(results)
 
 def roll_boost_die():
-    """Blue die - 6 sides"""
-    results = [
-        {},  # Blank
-        {},  # Blank
-        {"successes": 1},
-        {"successes": 1, "advantages": 1},
-        {"advantages": 2},
-        {"advantages": 1}
-    ]
+    results = [{}, {}, {"successes": 1}, {"successes": 1, "advantages": 1}, {"advantages": 2}, {"advantages": 1}]
     return random.choice(results)
 
 def roll_setback_die():
-    """Black die - 6 sides"""
-    results = [
-        {},  # Blank
-        {},  # Blank
-        {"failures": 1},
-        {"failures": 1},
-        {"threats": 1},
-        {"threats": 1}
-    ]
+    results = [{}, {}, {"failures": 1}, {"failures": 1}, {"threats": 1}, {"threats": 1}]
     return random.choice(results)
 
 def roll_force_die():
-    """White die - 12 sides"""
-    results = [
-        {"dark_side": 1},
-        {"dark_side": 1},
-        {"dark_side": 1},
-        {"dark_side": 1},
-        {"dark_side": 1},
-        {"dark_side": 1},
-        {"dark_side": 2},
-        {"light_side": 1},
-        {"light_side": 1},
-        {"light_side": 2},
-        {"light_side": 2},
-        {"light_side": 2}
-    ]
+    results = [{"dark_side": 1}, {"dark_side": 1}, {"dark_side": 1}, {"dark_side": 1},
+               {"dark_side": 1}, {"dark_side": 1}, {"dark_side": 2}, {"light_side": 1},
+               {"light_side": 1}, {"light_side": 2}, {"light_side": 2}, {"light_side": 2}]
     return random.choice(results)
 
 def roll_dice_pool(dice_roll: DiceRoll) -> DiceResult:
-    """Roll the full dice pool and calculate results"""
     result = DiceResult()
     dice_details = []
-    
-    # Roll ability dice (green)
     for _ in range(dice_roll.ability):
         roll = roll_ability_die()
         dice_details.append({"type": "ability", "color": "green", "result": roll})
-        result.successes += roll.get("successes", 0)
-        result.advantages += roll.get("advantages", 0)
-    
-    # Roll proficiency dice (yellow)
+        result.successes += roll.get("successes", 0); result.advantages += roll.get("advantages", 0)
     for _ in range(dice_roll.proficiency):
         roll = roll_proficiency_die()
         dice_details.append({"type": "proficiency", "color": "yellow", "result": roll})
-        result.successes += roll.get("successes", 0)
-        result.advantages += roll.get("advantages", 0)
+        result.successes += roll.get("successes", 0); result.advantages += roll.get("advantages", 0)
         result.triumphs += roll.get("triumphs", 0)
-        if roll.get("triumphs", 0) > 0:
-            result.successes += 1  # Triumph counts as success
-    
-    # Roll difficulty dice (purple)
+        if roll.get("triumphs", 0) > 0: result.successes += 1
     for _ in range(dice_roll.difficulty):
         roll = roll_difficulty_die()
         dice_details.append({"type": "difficulty", "color": "purple", "result": roll})
-        result.failures += roll.get("failures", 0)
-        result.threats += roll.get("threats", 0)
-    
-    # Roll challenge dice (red)
+        result.failures += roll.get("failures", 0); result.threats += roll.get("threats", 0)
     for _ in range(dice_roll.challenge):
         roll = roll_challenge_die()
         dice_details.append({"type": "challenge", "color": "red", "result": roll})
-        result.failures += roll.get("failures", 0)
-        result.threats += roll.get("threats", 0)
+        result.failures += roll.get("failures", 0); result.threats += roll.get("threats", 0)
         result.despairs += roll.get("despairs", 0)
-        if roll.get("despairs", 0) > 0:
-            result.failures += 1  # Despair counts as failure
-    
-    # Roll boost dice (blue)
+        if roll.get("despairs", 0) > 0: result.failures += 1
     for _ in range(dice_roll.boost):
         roll = roll_boost_die()
         dice_details.append({"type": "boost", "color": "blue", "result": roll})
-        result.successes += roll.get("successes", 0)
-        result.advantages += roll.get("advantages", 0)
-    
-    # Roll setback dice (black)
+        result.successes += roll.get("successes", 0); result.advantages += roll.get("advantages", 0)
     for _ in range(dice_roll.setback):
         roll = roll_setback_die()
         dice_details.append({"type": "setback", "color": "black", "result": roll})
-        result.failures += roll.get("failures", 0)
-        result.threats += roll.get("threats", 0)
-    
-    # Roll force dice (white)
+        result.failures += roll.get("failures", 0); result.threats += roll.get("threats", 0)
     for _ in range(dice_roll.force):
         roll = roll_force_die()
         dice_details.append({"type": "force", "color": "white", "result": roll})
-        result.light_side += roll.get("light_side", 0)
-        result.dark_side += roll.get("dark_side", 0)
-    
-    # Calculate net results
+        result.light_side += roll.get("light_side", 0); result.dark_side += roll.get("dark_side", 0)
     result.net_successes = result.successes - result.failures
     result.net_advantages = result.advantages - result.threats
     result.success = result.net_successes > 0
     result.dice_details = dice_details
-    
     return result
 
 # ============================================================================
@@ -486,29 +773,16 @@ def roll_dice_pool(dice_roll: DiceRoll) -> DiceResult:
 # ============================================================================
 
 async def get_current_user(request: Request) -> Optional[UserBase]:
-    """Get current user from session token"""
-    # Try cookie first
     session_token = request.cookies.get("session_token")
-    
-    # Fall back to Authorization header
     if not session_token:
         auth_header = request.headers.get("Authorization")
         if auth_header and auth_header.startswith("Bearer "):
             session_token = auth_header.split(" ")[1]
-    
     if not session_token:
         return None
-    
-    # Find session
-    session_doc = await db.user_sessions.find_one(
-        {"session_token": session_token},
-        {"_id": 0}
-    )
-    
+    session_doc = await db.user_sessions.find_one({"session_token": session_token}, {"_id": 0})
     if not session_doc:
         return None
-    
-    # Check expiry
     expires_at = session_doc["expires_at"]
     if isinstance(expires_at, str):
         expires_at = datetime.fromisoformat(expires_at)
@@ -516,104 +790,42 @@ async def get_current_user(request: Request) -> Optional[UserBase]:
         expires_at = expires_at.replace(tzinfo=timezone.utc)
     if expires_at < datetime.now(timezone.utc):
         return None
-    
-    # Get user
-    user_doc = await db.users.find_one(
-        {"user_id": session_doc["user_id"]},
-        {"_id": 0}
-    )
-    
+    user_doc = await db.users.find_one({"user_id": session_doc["user_id"]}, {"_id": 0})
     if not user_doc:
         return None
-    
     return UserBase(**user_doc)
 
 @api_router.post("/auth/session")
 async def create_session(request: Request, response: Response):
-    """Exchange session_id for session_token"""
     body = await request.json()
     session_id = body.get("session_id")
-    
     if not session_id:
         raise HTTPException(status_code=400, detail="session_id is required")
-    
-    # Call Emergent Auth to get user data
-    async with httpx.AsyncClient() as client:
-        auth_response = await client.get(
+    async with httpx.AsyncClient() as http_client:
+        auth_response = await http_client.get(
             "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
             headers={"X-Session-ID": session_id}
         )
-        
         if auth_response.status_code != 200:
             raise HTTPException(status_code=401, detail="Invalid session_id")
-        
         user_data = auth_response.json()
-    
-    # Check if user exists
-    existing_user = await db.users.find_one(
-        {"email": user_data["email"]},
-        {"_id": 0}
-    )
-    
+    existing_user = await db.users.find_one({"email": user_data["email"]}, {"_id": 0})
     if existing_user:
         user_id = existing_user["user_id"]
-        # Update user data
-        await db.users.update_one(
-            {"user_id": user_id},
-            {"$set": {
-                "name": user_data["name"],
-                "picture": user_data.get("picture")
-            }}
-        )
+        await db.users.update_one({"user_id": user_id}, {"$set": {"name": user_data["name"], "picture": user_data.get("picture")}})
     else:
-        # Create new user
         user_id = f"user_{uuid.uuid4().hex[:12]}"
-        new_user = {
-            "user_id": user_id,
-            "email": user_data["email"],
-            "name": user_data["name"],
-            "picture": user_data.get("picture"),
-            "created_at": datetime.now(timezone.utc)
-        }
-        await db.users.insert_one(new_user)
-    
-    # Create session
+        await db.users.insert_one({"user_id": user_id, "email": user_data["email"], "name": user_data["name"], "picture": user_data.get("picture"), "created_at": datetime.now(timezone.utc)})
     session_token = user_data.get("session_token", f"sess_{uuid.uuid4().hex}")
     expires_at = datetime.now(timezone.utc) + timedelta(days=7)
-    
-    session_doc = {
-        "session_token": session_token,
-        "user_id": user_id,
-        "expires_at": expires_at,
-        "created_at": datetime.now(timezone.utc)
-    }
-    
-    # Remove old sessions for this user
     await db.user_sessions.delete_many({"user_id": user_id})
-    await db.user_sessions.insert_one(session_doc)
-    
-    # Set cookie
-    response.set_cookie(
-        key="session_token",
-        value=session_token,
-        path="/",
-        secure=True,
-        httponly=True,
-        samesite="none",
-        expires=expires_at
-    )
-    
-    # Get user
+    await db.user_sessions.insert_one({"session_token": session_token, "user_id": user_id, "expires_at": expires_at, "created_at": datetime.now(timezone.utc)})
+    response.set_cookie(key="session_token", value=session_token, path="/", secure=True, httponly=True, samesite="none", expires=expires_at)
     user_doc = await db.users.find_one({"user_id": user_id}, {"_id": 0})
-    
-    return {
-        "user": user_doc,
-        "session_token": session_token
-    }
+    return {"user": user_doc, "session_token": session_token}
 
 @api_router.get("/auth/me")
 async def get_me(request: Request):
-    """Get current user info"""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -621,12 +833,9 @@ async def get_me(request: Request):
 
 @api_router.post("/auth/logout")
 async def logout(request: Request, response: Response):
-    """Logout current user"""
     session_token = request.cookies.get("session_token")
-    
     if session_token:
         await db.user_sessions.delete_one({"session_token": session_token})
-    
     response.delete_cookie(key="session_token", path="/")
     return {"message": "Logged out successfully"}
 
@@ -636,23 +845,27 @@ async def logout(request: Request, response: Response):
 
 @api_router.get("/game/species")
 async def get_species():
-    """Get all available species"""
     return SPECIES_DATA
 
 @api_router.get("/game/careers")
 async def get_careers():
-    """Get all available careers"""
     return CAREER_DATA
 
 @api_router.get("/game/skills")
 async def get_skills():
-    """Get all available skills"""
     return ALL_SKILLS
 
 @api_router.get("/game/locations")
 async def get_locations():
-    """Get all available locations"""
     return LOCATIONS
+
+@api_router.get("/game/equipment")
+async def get_equipment():
+    return CAREER_EQUIPMENT
+
+@api_router.get("/game/environments")
+async def get_environments():
+    return ENVIRONMENT_THEMES
 
 # ============================================================================
 # Character Endpoints
@@ -660,47 +873,40 @@ async def get_locations():
 
 @api_router.post("/characters")
 async def create_character(char_data: CharacterCreate, request: Request):
-    """Create a new character"""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    
-    # Get species data
     species_info = SPECIES_DATA.get(char_data.species)
     if not species_info:
         raise HTTPException(status_code=400, detail="Invalid species")
-    
-    # Get career data
     career_info = CAREER_DATA.get(char_data.career)
     if not career_info:
         raise HTTPException(status_code=400, detail="Invalid career")
-    
     if char_data.specialization not in career_info["specializations"]:
         raise HTTPException(status_code=400, detail="Invalid specialization for career")
-    
-    # Build stats with species bonuses
+
     stats = CharacterStats()
     for stat, bonus in species_info.get("stat_bonuses", {}).items():
-        current_val = getattr(stats, stat)
-        setattr(stats, stat, current_val + bonus)
-    
-    # Build skills with career skills at rank 1
+        setattr(stats, stat, getattr(stats, stat) + bonus)
+
     skills = []
     for skill_data in ALL_SKILLS:
         rank = 1 if skill_data["name"] in career_info["career_skills"] else 0
-        skills.append(CharacterSkill(
-            name=skill_data["name"],
-            rank=rank,
-            characteristic=skill_data["characteristic"]
-        ))
-    
-    # Calculate health thresholds
+        skills.append(CharacterSkill(name=skill_data["name"], rank=rank, characteristic=skill_data["characteristic"]))
+
     health = CharacterHealth(
         wound_threshold=10 + stats.brawn + species_info.get("wound_bonus", 0),
         strain_threshold=10 + stats.willpower + species_info.get("strain_bonus", 0)
     )
-    
-    # Create character
+
+    # Build starter equipment from career + specialization
+    equipment = []
+    career_equip = CAREER_EQUIPMENT.get(char_data.career, {})
+    for item in career_equip.get("base", []):
+        equipment.append(item)
+    for item in career_equip.get(char_data.specialization, []):
+        equipment.append(item)
+
     character = Character(
         user_id=user.user_id,
         name=char_data.name,
@@ -710,119 +916,127 @@ async def create_character(char_data: CharacterCreate, request: Request):
         stats=stats,
         skills=skills,
         health=health,
-        experience=CharacterExperience(
-            total=species_info.get("starting_xp", 100),
-            available=species_info.get("starting_xp", 100)
-        ),
+        equipment=equipment,
+        experience=CharacterExperience(total=species_info.get("starting_xp", 100), available=species_info.get("starting_xp", 100)),
         backstory=char_data.backstory
     )
-    
-    # Save to database
     await db.characters.insert_one(character.model_dump())
-    
     return character.model_dump()
 
 @api_router.get("/characters")
 async def get_characters(request: Request):
-    """Get all characters for current user"""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    
-    characters = await db.characters.find(
-        {"user_id": user.user_id},
-        {"_id": 0}
-    ).to_list(100)
-    
+    characters = await db.characters.find({"user_id": user.user_id}, {"_id": 0}).to_list(100)
     return characters
 
 @api_router.get("/characters/{character_id}")
 async def get_character(character_id: str, request: Request):
-    """Get a specific character"""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    
-    character = await db.characters.find_one(
-        {"character_id": character_id, "user_id": user.user_id},
-        {"_id": 0}
-    )
-    
+    character = await db.characters.find_one({"character_id": character_id, "user_id": user.user_id}, {"_id": 0})
     if not character:
         raise HTTPException(status_code=404, detail="Character not found")
-    
     return character
 
 @api_router.delete("/characters/{character_id}")
 async def delete_character(character_id: str, request: Request):
-    """Delete a character"""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    
-    result = await db.characters.delete_one(
-        {"character_id": character_id, "user_id": user.user_id}
-    )
-    
+    result = await db.characters.delete_one({"character_id": character_id, "user_id": user.user_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Character not found")
-    
-    # Also delete associated game sessions
     await db.game_sessions.delete_many({"character_id": character_id})
-    
     return {"message": "Character deleted"}
 
 # ============================================================================
-# Character Portrait Generation
+# Enhanced Character Portrait Generation
 # ============================================================================
 
 @api_router.post("/characters/{character_id}/generate-portrait")
 async def generate_portrait(character_id: str, request: Request):
-    """Generate AI portrait for character"""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    
-    character = await db.characters.find_one(
-        {"character_id": character_id, "user_id": user.user_id},
-        {"_id": 0}
-    )
-    
+    character = await db.characters.find_one({"character_id": character_id, "user_id": user.user_id}, {"_id": 0})
     if not character:
         raise HTTPException(status_code=404, detail="Character not found")
-    
-    # Build portrait prompt
-    species_desc = SPECIES_DATA.get(character["species"], {}).get("description", "")
-    
-    prompt = f"""Star Wars character portrait, cinematic lighting, detailed:
-A {character['species']} {character['career']} named {character['name']}.
-Species details: {species_desc}
-Career: {character['career']} - {character['specialization']}
-Style: Star Wars universe, dramatic lighting, space opera aesthetic, professional character art.
-The character should look like they belong in the Outer Rim, weathered but determined.
-Portrait style, head and shoulders, facing slightly to the side, dramatic backlighting."""
-    
+
+    species_info = SPECIES_DATA.get(character["species"], {})
+    species_appearance = species_info.get("appearance", species_info.get("description", ""))
+
+    # Build equipment description for the portrait
+    weapons = [e["name"] for e in character.get("equipment", []) if e.get("category") == "weapon"]
+    armor = [e["name"] for e in character.get("equipment", []) if e.get("category") == "armor"]
+    gear_highlights = [e["name"] for e in character.get("equipment", []) if e.get("category") == "gear"][:3]
+
+    weapon_desc = f"Carrying {', '.join(weapons)}." if weapons else ""
+    armor_desc = f"Wearing {', '.join(armor)}." if armor else ""
+    gear_desc = f"Visible gear: {', '.join(gear_highlights)}." if gear_highlights else ""
+
+    backstory_tone = ""
+    if character.get("backstory"):
+        backstory_tone = f"Backstory vibe: {character['backstory'][:150]}."
+
+    # Career-specific visual cues
+    career_visual = {
+        "Bounty Hunter": "Tactical stance, alert eyes scanning for prey, worn Mandalorian-inspired armor plates, utility bandolier.",
+        "Colonist": "Composed posture, intelligent eyes, well-groomed appearance, datapad visible, business-like confidence.",
+        "Explorer": "Weathered face, distant gaze of someone who has seen countless worlds, dust-covered travel gear.",
+        "Hired Gun": "Battle-hardened expression, scars visible, muscular build, weapons within easy reach, soldier's bearing.",
+        "Smuggler": "Cocky half-grin, relaxed but ready posture, blaster at hip, lived-in spacer clothes, rakish charm.",
+        "Technician": "Grease-stained hands, goggles pushed up on forehead, tools hanging from belt, bright curious eyes."
+    }.get(character["career"], "")
+
+    spec_visual = {
+        "Assassin": "Cold calculating eyes, dark hood partially obscuring face, blade glint at waist.",
+        "Gadgeteer": "Custom modified armor with visible tech attachments, wrist-mounted devices.",
+        "Survivalist": "Wild untamed look, animal pelts or trophies, hardened by nature.",
+        "Doctor": "Clean precise hands, medical scanner visible, compassionate but weary expression.",
+        "Politico": "Silver-tongued confidence, expensive accessories, political insignia.",
+        "Scholar": "Wise knowing eyes, ancient artifacts, dust of forgotten libraries.",
+        "Fringer": "Trail-worn ruggedness, frontier survival gear, multi-tool at belt.",
+        "Scout": "Sharp observant eyes, camouflage elements, binoculars hanging from neck.",
+        "Trader": "Shrewd appraising gaze, cargo manifest in hand, credits pouch at waist.",
+        "Bodyguard": "Vigilant protective stance, shield arm forward, scanning for threats.",
+        "Marauder": "Feral aggression, ritual scarification, oversized melee weapon.",
+        "Mercenary Soldier": "Military discipline, tactical vest with ammo, dog tags.",
+        "Pilot": "Flight jacket with patches, aviator goggles, confident flyboy posture.",
+        "Scoundrel": "Charming rogue smile, hidden holdout blaster, sabacc cards peeking from pocket.",
+        "Thief": "Shadow-hugging posture, lockpicks visible, dark form-fitting clothes.",
+        "Mechanic": "Oil-stained coveralls, hydrospanner in hand, droid parts in pockets.",
+        "Outlaw Tech": "Modified blaster with visible mods, tech-heavy bandolier, defiant stance.",
+        "Slicer": "Cybernetic implants or data-jacks, holographic interfaces, digital rebel aesthetic."
+    }.get(character["specialization"], "")
+
+    prompt = f"""Cinematic Star Wars character portrait, photorealistic digital painting, dramatic rim lighting:
+
+SPECIES: {character['species']} - {species_appearance}
+CHARACTER: {character['name']}, a {character['career']} ({character['specialization']})
+
+VISUAL IDENTITY:
+{career_visual}
+{spec_visual}
+
+EQUIPMENT & ATTIRE:
+{weapon_desc} {armor_desc} {gear_desc}
+
+{backstory_tone}
+
+ARTISTIC DIRECTION: Portrait framing (head to mid-chest), Outer Rim setting background blur, cinematic color grading, Star Wars concept art quality. The character should feel lived-in and authentic to the galaxy's edge - not pristine, but real. Dramatic side-lighting with environmental color spill."""
+
     try:
         image_gen = OpenAIImageGeneration(api_key=EMERGENT_LLM_KEY)
-        images = await image_gen.generate_images(
-            prompt=prompt,
-            model="gpt-image-1",
-            number_of_images=1
-        )
-        
+        images = await image_gen.generate_images(prompt=prompt, model="gpt-image-1", number_of_images=1)
         if images and len(images) > 0:
             image_base64 = base64.b64encode(images[0]).decode('utf-8')
-            
-            # Update character with portrait
-            await db.characters.update_one(
-                {"character_id": character_id},
-                {"$set": {"portrait_base64": image_base64}}
-            )
-            
+            await db.characters.update_one({"character_id": character_id}, {"$set": {"portrait_base64": image_base64}})
             return {"portrait_base64": image_base64}
         else:
             raise HTTPException(status_code=500, detail="No image generated")
-    
     except Exception as e:
         logger.error(f"Portrait generation error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to generate portrait: {str(e)}")
@@ -833,72 +1047,32 @@ Portrait style, head and shoulders, facing slightly to the side, dramatic backli
 
 @api_router.post("/dice/roll")
 async def roll_dice(dice_roll: DiceRoll, request: Request):
-    """Roll dice pool"""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    
     result = roll_dice_pool(dice_roll)
     return result.model_dump()
 
 @api_router.post("/dice/skill-check")
 async def skill_check(request: Request):
-    """Roll skill check for character"""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    
     body = await request.json()
     character_id = body.get("character_id")
     skill_name = body.get("skill_name")
-    difficulty = body.get("difficulty", 2)  # Default to Average difficulty
-    
-    character = await db.characters.find_one(
-        {"character_id": character_id, "user_id": user.user_id},
-        {"_id": 0}
-    )
-    
+    difficulty = body.get("difficulty", 2)
+    character = await db.characters.find_one({"character_id": character_id, "user_id": user.user_id}, {"_id": 0})
     if not character:
         raise HTTPException(status_code=404, detail="Character not found")
-    
-    # Find skill
-    skill = None
-    for s in character.get("skills", []):
-        if s["name"] == skill_name:
-            skill = s
-            break
-    
-    if not skill:
+    dice_roll, skill = build_dice_pool_for_skill(character, skill_name, difficulty)
+    if not dice_roll:
         raise HTTPException(status_code=400, detail="Skill not found")
-    
-    # Get characteristic value
-    char_value = character["stats"].get(skill["characteristic"], 2)
-    skill_rank = skill.get("rank", 0)
-    
-    # Build dice pool: higher of char/skill becomes proficiency, lower becomes ability
-    if char_value >= skill_rank:
-        proficiency = skill_rank
-        ability = char_value - skill_rank
-    else:
-        proficiency = char_value
-        ability = skill_rank - char_value
-    
-    dice_roll = DiceRoll(
-        ability=ability,
-        proficiency=proficiency,
-        difficulty=difficulty
-    )
-    
     result = roll_dice_pool(dice_roll)
-    
     return {
         "skill": skill_name,
         "characteristic": skill["characteristic"],
-        "dice_pool": {
-            "ability": ability,
-            "proficiency": proficiency,
-            "difficulty": difficulty
-        },
+        "dice_pool": {"ability": dice_roll.ability, "proficiency": dice_roll.proficiency, "difficulty": difficulty},
         "result": result.model_dump()
     }
 
@@ -908,142 +1082,95 @@ async def skill_check(request: Request):
 
 @api_router.post("/game/sessions")
 async def create_game_session(request: Request):
-    """Create a new game session"""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    
     body = await request.json()
     character_id = body.get("character_id")
-    
-    character = await db.characters.find_one(
-        {"character_id": character_id, "user_id": user.user_id},
-        {"_id": 0}
-    )
-    
+    character = await db.characters.find_one({"character_id": character_id, "user_id": user.user_id}, {"_id": 0})
     if not character:
         raise HTTPException(status_code=404, detail="Character not found")
-    
-    # Create new game session
-    session = GameSession(
-        user_id=user.user_id,
-        character_id=character_id,
-        current_location=random.choice(LOCATIONS)
-    )
-    
+    location = random.choice(LOCATIONS)
+    env_type = LOCATION_ENVIRONMENTS.get(location, "urban")
+    session = GameSession(user_id=user.user_id, character_id=character_id, current_location=location, environment_type=env_type)
     await db.game_sessions.insert_one(session.model_dump())
-    
-    return session.model_dump()
+    session_dict = session.model_dump()
+    session_dict["environment_theme"] = ENVIRONMENT_THEMES.get(env_type, ENVIRONMENT_THEMES["urban"])
+    return session_dict
 
 @api_router.get("/game/sessions")
 async def get_game_sessions(request: Request):
-    """Get all game sessions for current user"""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    
-    sessions = await db.game_sessions.find(
-        {"user_id": user.user_id},
-        {"_id": 0}
-    ).to_list(100)
-    
+    sessions = await db.game_sessions.find({"user_id": user.user_id}, {"_id": 0}).to_list(100)
     return sessions
 
 @api_router.get("/game/sessions/{session_id}")
 async def get_game_session(session_id: str, request: Request):
-    """Get a specific game session"""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    
-    session = await db.game_sessions.find_one(
-        {"session_id": session_id, "user_id": user.user_id},
-        {"_id": 0}
-    )
-    
+    session = await db.game_sessions.find_one({"session_id": session_id, "user_id": user.user_id}, {"_id": 0})
     if not session:
         raise HTTPException(status_code=404, detail="Game session not found")
-    
+    env_type = session.get("environment_type", "urban")
+    session["environment_theme"] = ENVIRONMENT_THEMES.get(env_type, ENVIRONMENT_THEMES["urban"])
     return session
 
 @api_router.post("/game/sessions/{session_id}/action")
 async def player_action(session_id: str, action: PlayerAction, request: Request):
-    """Process player action and get AI Game Master response"""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    
-    # Get game session
-    session = await db.game_sessions.find_one(
-        {"session_id": session_id, "user_id": user.user_id},
-        {"_id": 0}
-    )
-    
+    session = await db.game_sessions.find_one({"session_id": session_id, "user_id": user.user_id}, {"_id": 0})
     if not session:
         raise HTTPException(status_code=404, detail="Game session not found")
-    
-    # Get character
-    character = await db.characters.find_one(
-        {"character_id": session["character_id"]},
-        {"_id": 0}
-    )
-    
+    character = await db.characters.find_one({"character_id": session["character_id"]}, {"_id": 0})
     if not character:
         raise HTTPException(status_code=404, detail="Character not found")
-    
-    # Process skill check if needed
+
+    # Auto-detect skill for contested interaction
+    skill_name = action.skill or detect_skill_from_action(action.action)
+    in_combat = session.get("combat_state", {}).get("in_combat", False)
+    difficulty = determine_difficulty(action.action, in_combat)
+
     dice_result = None
-    if action.skill:
-        # Find skill
-        skill = None
-        for s in character.get("skills", []):
-            if s["name"] == action.skill:
-                skill = s
-                break
-        
-        if skill:
-            char_value = character["stats"].get(skill["characteristic"], 2)
-            skill_rank = skill.get("rank", 0)
-            
-            if char_value >= skill_rank:
-                proficiency = skill_rank
-                ability = char_value - skill_rank
-            else:
-                proficiency = char_value
-                ability = skill_rank - char_value
-            
-            # Determine difficulty based on context
-            difficulty = 2  # Average by default
-            
-            dice_roll = DiceRoll(
-                ability=ability,
-                proficiency=proficiency,
-                difficulty=difficulty
-            )
-            
-            dice_result = roll_dice_pool(dice_roll)
-    
+    dice_roll_obj = None
+    dice_line = None
+
+    if skill_name:
+        dice_roll_obj, skill_info = build_dice_pool_for_skill(character, skill_name, difficulty)
+        if dice_roll_obj:
+            dice_result = roll_dice_pool(dice_roll_obj)
+            dice_line = format_dice_line(skill_name, dice_roll_obj, dice_result)
+
     # Build context for AI
     recent_history = session.get("game_history", [])[-10:]
     history_text = "\n".join([f"{msg['role']}: {msg['content']}" for msg in recent_history])
-    
+
     combat_context = ""
-    if session.get("combat_state", {}).get("in_combat"):
+    if in_combat:
         enemies = session["combat_state"].get("enemies", [])
         enemy_text = ", ".join([f"{e['name']} ({e['wounds']}/{e['wound_threshold']} wounds)" for e in enemies])
         combat_context = f"\nCURRENT COMBAT: Fighting against {enemy_text}"
-    
+
     dice_context = ""
     if dice_result:
         dice_context = f"""
-DICE ROLL RESULT for {action.skill}:
+DICE ROLL RESULT for {skill_name}:
 - Net Successes: {dice_result.net_successes}
 - Net Advantages: {dice_result.net_advantages}
 - Triumphs: {dice_result.triumphs}
 - Despairs: {dice_result.despairs}
-- Success: {'Yes' if dice_result.success else 'No'}
+- Overall: {'SUCCESS' if dice_result.success else 'FAILURE'}
+
+IMPORTANT: Weave the dice result into your narrative naturally. If the roll succeeded, describe the action going well with flair proportional to the number of successes. If it failed, describe a dramatic setback. Advantages should add bonus narrative benefits. Threats should introduce minor complications. Triumphs are extraordinary lucky breaks. Despairs are catastrophic twists.
+Do NOT mention dice, numbers, or game mechanics directly in your story text - keep it purely narrative.
 """
-    
+
+    equipment_list = ", ".join([e["name"] for e in character.get("equipment", [])]) if character.get("equipment") else "basic gear"
+
     system_prompt = f"""You are the Game Master for a Star Wars: Edge of the Empire tabletop RPG.
 You create immersive, cinematic narratives set at the edge of the Star Wars galaxy.
 
@@ -1052,22 +1179,21 @@ CURRENT CHARACTER:
 - Species: {character['species']}
 - Career: {character['career']} ({character['specialization']})
 - Location: {session['current_location']}
-- Health: {character['health']['wounds']}/{character['health']['wound_threshold']} wounds
+- Health: {character['health']['wounds']}/{character['health']['wound_threshold']} wounds, {character['health']['strain']}/{character['health']['strain_threshold']} strain
+- Equipment: {equipment_list}
 {combat_context}
 
 GAME CONTEXT:
 {history_text}
 
 STYLE GUIDELINES:
-- Write cinematic, immersive descriptions
-- Include sensory details (sounds, smells, atmosphere)
-- Reference Star Wars lore and technology appropriately
-- Create tension and stakes
-- Give NPCs distinct personalities
+- Write cinematic, immersive descriptions with sensory details
+- Reference the character's equipment and abilities naturally
+- Create tension and stakes, give NPCs distinct personalities
 - Keep responses to 2-3 paragraphs
 - End with a clear situation for the player to respond to
-- If combat occurs, describe it dramatically
-- Reference the dice results narratively when provided
+- NEVER break the fourth wall or reference game mechanics/dice in your narrative
+- If the environment changes (entering a cantina, going outside, flying into space, etc.), describe the shift vividly
 
 {dice_context}
 
@@ -1078,73 +1204,62 @@ Respond as the Game Master, narrating what happens next."""
     try:
         chat = LlmChat(
             api_key=EMERGENT_LLM_KEY,
-            session_id=f"eote_{session_id}",
+            session_id=f"eote_{session_id}_{uuid.uuid4().hex[:6]}",
             system_message=system_prompt
         ).with_model("anthropic", "claude-4-sonnet-20250514")
-        
+
         user_message = UserMessage(text=action.action)
         gm_response = await chat.send_message(user_message)
-        
+
+        # Detect environment change from the narrative
+        new_env = detect_environment_from_text(gm_response)
+        current_env = session.get("environment_type", "urban")
+        if new_env and new_env != current_env:
+            current_env = new_env
+
         # Add messages to history
         new_history = session.get("game_history", [])
-        new_history.append({
-            "role": "player",
-            "content": action.action,
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        })
-        new_history.append({
-            "role": "game_master",
-            "content": gm_response,
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        })
-        
-        # Update session
+        player_msg = {"role": "player", "content": action.action, "timestamp": datetime.now(timezone.utc).isoformat()}
+        gm_msg = {"role": "game_master", "content": gm_response, "timestamp": datetime.now(timezone.utc).isoformat()}
+        if dice_line:
+            gm_msg["dice_line"] = dice_line
+        new_history.append(player_msg)
+        new_history.append(gm_msg)
+
         await db.game_sessions.update_one(
             {"session_id": session_id},
-            {
-                "$set": {
-                    "game_history": new_history,
-                    "updated_at": datetime.now(timezone.utc)
-                }
-            }
+            {"$set": {"game_history": new_history, "updated_at": datetime.now(timezone.utc), "environment_type": current_env}}
         )
-        
+
         response_data = {
             "gm_response": gm_response,
             "dice_result": dice_result.model_dump() if dice_result else None,
-            "location": session["current_location"]
+            "dice_line": dice_line,
+            "location": session["current_location"],
+            "environment_type": current_env,
+            "environment_theme": ENVIRONMENT_THEMES.get(current_env, ENVIRONMENT_THEMES["urban"]),
+            "skill_used": skill_name,
         }
-        
         return response_data
-        
+
     except Exception as e:
         logger.error(f"AI Game Master error: {e}")
         raise HTTPException(status_code=500, detail=f"AI Game Master error: {str(e)}")
 
 @api_router.post("/game/sessions/{session_id}/start")
 async def start_game_session(session_id: str, request: Request):
-    """Start a game session with an opening narrative"""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    
-    session = await db.game_sessions.find_one(
-        {"session_id": session_id, "user_id": user.user_id},
-        {"_id": 0}
-    )
-    
+    session = await db.game_sessions.find_one({"session_id": session_id, "user_id": user.user_id}, {"_id": 0})
     if not session:
         raise HTTPException(status_code=404, detail="Game session not found")
-    
-    character = await db.characters.find_one(
-        {"character_id": session["character_id"]},
-        {"_id": 0}
-    )
-    
+    character = await db.characters.find_one({"character_id": session["character_id"]}, {"_id": 0})
     if not character:
         raise HTTPException(status_code=404, detail="Character not found")
-    
-    # Generate opening narrative
+
+    equipment_list = ", ".join([e["name"] for e in character.get("equipment", [])]) if character.get("equipment") else "basic gear"
+
     system_prompt = f"""You are the Game Master for a Star Wars: Edge of the Empire tabletop RPG.
 Create an immersive opening scene for a new adventure.
 
@@ -1152,18 +1267,19 @@ CHARACTER:
 - Name: {character['name']}
 - Species: {character['species']}
 - Career: {character['career']} ({character['specialization']})
+- Equipment: {equipment_list}
 - Backstory: {character.get('backstory', 'A traveler seeking fortune at the galaxy edge.')}
 
 LOCATION: {session['current_location']}
 
 Create a dramatic opening scene that:
-1. Describes the location with vivid sensory details
-2. Establishes the atmosphere (seedy cantina, busy spaceport, etc.)
-3. Introduces an immediate situation or hook
-4. Gives the character a reason to act
+1. Describes the location with vivid sensory details (sounds, smells, lights, atmosphere)
+2. Establishes the environment (what kind of place this is)
+3. References or hints at the character's equipment or career naturally
+4. Introduces an immediate situation or hook that demands action
 5. Ends with a clear prompt for the player
 
-Keep it to 3-4 paragraphs. Make it feel like Star Wars!"""
+Keep it to 3-4 paragraphs. Make it feel like Star Wars! NEVER reference dice or game mechanics."""
 
     try:
         chat = LlmChat(
@@ -1171,33 +1287,23 @@ Keep it to 3-4 paragraphs. Make it feel like Star Wars!"""
             session_id=f"eote_start_{session_id}",
             system_message=system_prompt
         ).with_model("anthropic", "claude-4-sonnet-20250514")
-        
+
         user_message = UserMessage(text="Begin the adventure!")
         opening = await chat.send_message(user_message)
-        
-        # Add to history
-        new_history = [{
-            "role": "game_master",
-            "content": opening,
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        }]
-        
-        await db.game_sessions.update_one(
-            {"session_id": session_id},
-            {
-                "$set": {
-                    "game_history": new_history,
-                    "updated_at": datetime.now(timezone.utc)
-                }
-            }
-        )
-        
+
+        new_history = [{"role": "game_master", "content": opening, "timestamp": datetime.now(timezone.utc).isoformat()}]
+        await db.game_sessions.update_one({"session_id": session_id}, {"$set": {"game_history": new_history, "updated_at": datetime.now(timezone.utc)}})
+
+        env_type = session.get("environment_type", LOCATION_ENVIRONMENTS.get(session["current_location"], "urban"))
+
         return {
             "opening": opening,
             "location": session["current_location"],
-            "character": character
+            "character": character,
+            "environment_type": env_type,
+            "environment_theme": ENVIRONMENT_THEMES.get(env_type, ENVIRONMENT_THEMES["urban"]),
         }
-        
+
     except Exception as e:
         logger.error(f"Start game error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to start game: {str(e)}")
@@ -1208,9 +1314,8 @@ Keep it to 3-4 paragraphs. Make it feel like Star Wars!"""
 
 @api_router.get("/")
 async def root():
-    return {"message": "Star Wars: Edge of the Empire RPG API", "version": "1.0.0"}
+    return {"message": "Star Wars: Edge of the Empire RPG API", "version": "2.0.0"}
 
-# Include the router in the main app
 app.include_router(api_router)
 
 app.add_middleware(
