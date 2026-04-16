@@ -13,15 +13,22 @@ import {
   Image,
   ImageBackground,
   Dimensions,
+  AppState,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Audio } from 'expo-av';
 import { useGameStore } from '../../src/stores/gameStore';
 import { DiceDisplay } from '../../src/components/DiceDisplay';
 import { HoloTableGalaxy } from '../../src/components/HoloTableGalaxy';
 import { Character, DiceResult, GameMessage } from '../../src/types/game';
+import {
+  startAmbientAudio,
+  stopAmbientAudio,
+  playDiceRollSound,
+  playCommBeep,
+  playWarningKlaxon,
+} from '../../src/utils/audioEngine';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
@@ -73,11 +80,11 @@ export default function GamePlay() {
   const [envTheme, setEnvTheme] = useState<EnvironmentTheme>(DEFAULT_THEME);
   const [sceneImage, setSceneImage] = useState<string | null>(null);
   const [isGeneratingScene, setIsGeneratingScene] = useState(false);
-  const [soundObj, setSoundObj] = useState<Audio.Sound | null>(null);
   const [pendingWarning, setPendingWarning] = useState<any>(null);
   const [pendingAction, setPendingAction] = useState<string>('');
   const [pendingSkill, setPendingSkill] = useState<string | null>(null);
   const [advancementNotif, setAdvancementNotif] = useState<any>(null);
+  const [audioStarted, setAudioStarted] = useState(false);
 
   const scrollViewRef = useRef<ScrollView>(null);
   const prevEnvRef = useRef<string>('urban');
@@ -85,12 +92,29 @@ export default function GamePlay() {
   useEffect(() => {
     initGame();
     return () => {
-      // Cleanup sound on unmount
-      if (soundObj) {
-        soundObj.unloadAsync();
-      }
+      // Cleanup audio on unmount
+      stopAmbientAudio();
     };
   }, [sessionId, characterId]);
+
+  // Start/switch ambient audio when environment changes
+  useEffect(() => {
+    if (!isLoading && envTheme.type && audioStarted) {
+      startAmbientAudio(envTheme.type);
+    }
+  }, [envTheme.type, isLoading, audioStarted]);
+
+  // Handle app state for auto-save and audio pause
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'background' || nextState === 'inactive') {
+        stopAmbientAudio();
+      } else if (nextState === 'active' && audioStarted) {
+        startAmbientAudio(envTheme.type);
+      }
+    });
+    return () => subscription.remove();
+  }, [envTheme.type, audioStarted]);
 
   const initGame = async () => {
     setIsLoading(true);
@@ -162,11 +186,19 @@ export default function GamePlay() {
     };
     if (!overrideAction) setMessages(prev => [...prev, playerMessage]);
 
+    // Start audio on first interaction (browser autoplay policy)
+    if (!audioStarted) {
+      setAudioStarted(true);
+      startAmbientAudio(envTheme.type);
+    }
+    playCommBeep();
+
     try {
       const result = await sendAction(currentSession.session_id, action, skill, forceAction);
 
       // Handle warning response
       if (result.warning && result.requires_confirmation) {
+        playWarningKlaxon();
         setPendingWarning(result);
         setPendingAction(action);
         setPendingSkill(skill || null);
@@ -189,6 +221,9 @@ export default function GamePlay() {
 
       if (result.dice_result) setLastDiceResult(result.dice_result);
       else setLastDiceResult(null);
+
+      // Play dice roll sound if dice were rolled
+      if (result.dice_result) playDiceRollSound();
 
       if (result.environment_theme) {
         setEnvTheme(result.environment_theme);
