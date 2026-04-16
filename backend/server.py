@@ -135,6 +135,14 @@ class CombatState(BaseModel):
     initiative_order: List[str] = Field(default_factory=list)
     current_turn: int = 0
 
+class StoryJournal(BaseModel):
+    npcs_met: List[Dict[str, str]] = Field(default_factory=list)  # [{name, description, disposition}]
+    locations_visited: List[str] = Field(default_factory=list)
+    major_events: List[str] = Field(default_factory=list)
+    unresolved_threads: List[str] = Field(default_factory=list)
+    player_reputation: str = "unknown newcomer"
+    summary: str = ""
+
 class GameSession(BaseModel):
     session_id: str = Field(default_factory=lambda: f"game_{uuid.uuid4().hex[:12]}")
     user_id: str
@@ -146,6 +154,7 @@ class GameSession(BaseModel):
     npcs: List[Dict[str, Any]] = Field(default_factory=list)
     combat_state: CombatState = Field(default_factory=CombatState)
     game_history: List[GameMessage] = Field(default_factory=list)
+    story_journal: StoryJournal = Field(default_factory=StoryJournal)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -1397,6 +1406,98 @@ async def skill_check(request: Request):
     }
 
 # ============================================================================
+# Story Journal & Memory System
+# ============================================================================
+
+async def update_story_journal(session_id: str, gm_response: str, player_action_text: str, character: dict):
+    """Extract key story elements from the latest exchange and update the journal."""
+    session = await db.game_sessions.find_one({"session_id": session_id}, {"_id": 0})
+    if not session:
+        return
+
+    journal = session.get("story_journal", {})
+    npcs_met = journal.get("npcs_met", [])
+    locations_visited = journal.get("locations_visited", [])
+    major_events = journal.get("major_events", [])
+    unresolved_threads = journal.get("unresolved_threads", [])
+
+    # Add current location if new
+    current_loc = session.get("current_location", "")
+    if current_loc and current_loc not in locations_visited:
+        locations_visited.append(current_loc)
+
+    # Build a running summary from recent history (last 20 messages)
+    history = session.get("game_history", [])
+    gm_messages = [m["content"] for m in history if m.get("role") == "game_master"]
+    player_messages = [m["content"] for m in history if m.get("role") == "player"]
+
+    # Build concise summary of story so far
+    summary_parts = []
+    if locations_visited:
+        summary_parts.append(f"Visited: {', '.join(locations_visited[-5:])}")
+    if len(gm_messages) > 0:
+        # Use the first and most recent GM messages as bookends
+        summary_parts.append(f"Story began: {gm_messages[0][:150]}...")
+        if len(gm_messages) > 2:
+            summary_parts.append(f"Recent events: {gm_messages[-1][:200]}...")
+
+    summary = " | ".join(summary_parts)
+
+    # Keep journal manageable
+    if len(major_events) > 20:
+        major_events = major_events[-20:]
+
+    await db.game_sessions.update_one(
+        {"session_id": session_id},
+        {"$set": {
+            "story_journal": {
+                "npcs_met": npcs_met[-15:],  # Keep last 15 NPCs
+                "locations_visited": locations_visited[-10:],
+                "major_events": major_events,
+                "unresolved_threads": unresolved_threads[-5:],
+                "player_reputation": journal.get("player_reputation", "unknown newcomer"),
+                "summary": summary,
+            }
+        }}
+    )
+
+def build_story_memory_prompt(session: dict) -> str:
+    """Build the story memory context for the AI from the journal and full history."""
+    journal = session.get("story_journal", {})
+    history = session.get("game_history", [])
+
+    memory_parts = []
+
+    # Locations
+    locations = journal.get("locations_visited", [])
+    if locations:
+        memory_parts.append(f"LOCATIONS VISITED: {', '.join(locations)}")
+
+    # NPCs
+    npcs = journal.get("npcs_met", [])
+    if npcs:
+        npc_list = ", ".join([f"{n.get('name', 'Unknown')} ({n.get('disposition', 'neutral')})" for n in npcs])
+        memory_parts.append(f"NPCS ENCOUNTERED: {npc_list}")
+
+    # Major events
+    events = journal.get("major_events", [])
+    if events:
+        memory_parts.append(f"KEY EVENTS: {'; '.join(events[-5:])}")
+
+    # Unresolved threads
+    threads = journal.get("unresolved_threads", [])
+    if threads:
+        memory_parts.append(f"UNRESOLVED PLOT THREADS: {'; '.join(threads)}")
+
+    # Full conversation history (expanded from 10 to 20)
+    recent = history[-20:]
+    if recent:
+        hist_text = "\n".join([f"{'[Player]' if m.get('role') == 'player' else '[GM]'}: {m.get('content', '')[:300]}" for m in recent])
+        memory_parts.append(f"RECENT STORY:\n{hist_text}")
+
+    return "\n\n".join(memory_parts)
+
+# ============================================================================
 # Game Session & AI Game Master Endpoints
 # ============================================================================
 
@@ -1425,6 +1526,23 @@ async def get_game_sessions(request: Request):
         raise HTTPException(status_code=401, detail="Not authenticated")
     sessions = await db.game_sessions.find({"user_id": user.user_id}, {"_id": 0}).to_list(100)
     return sessions
+
+@api_router.get("/game/sessions/latest/{character_id}")
+async def get_latest_session(character_id: str, request: Request):
+    """Get the most recent game session for a character (for Continue Adventure)"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    session = await db.game_sessions.find_one(
+        {"character_id": character_id, "user_id": user.user_id, "game_history": {"$ne": []}},
+        {"_id": 0},
+        sort=[("updated_at", -1)]
+    )
+    if not session:
+        return {"has_session": False, "session": None}
+    env_type = session.get("environment_type", "urban")
+    session["environment_theme"] = ENVIRONMENT_THEMES.get(env_type, ENVIRONMENT_THEMES["urban"])
+    return {"has_session": True, "session": session}
 
 @api_router.get("/game/sessions/{session_id}")
 async def get_game_session(session_id: str, request: Request):
@@ -1571,12 +1689,15 @@ Subtly weave this growth into the narrative - perhaps they notice their reflexes
     equipment_list = ", ".join([e["name"] for e in character.get("equipment", [])]) if character.get("equipment") else "basic gear"
     talents_list = ", ".join(character.get("skill_talents", [])) if character.get("skill_talents") else "none"
 
+    # Build story memory from journal
+    story_memory = build_story_memory_prompt(session)
+
     system_prompt = f"""You are the Game Master for a Star Wars: Edge of the Empire tabletop RPG.
-You create immersive, cinematic narratives set at the edge of the Star Wars galaxy.
+You are a master storyteller creating a DEEPLY IMMERSIVE experience — the player should feel like they are physically standing in the Star Wars universe.
 
 CURRENT CHARACTER:
 - Name: {character['name']}
-- Species: {character['species']}
+- Species: {character['species']} — use species-specific mannerisms (Trandoshan hisses, Wookiee growls, Twi'lek lekku gestures)
 - Career: {character['career']} ({character['specialization']})
 - Location: {session['current_location']}
 - Health: {character['health']['wounds']}/{character['health']['wound_threshold']} wounds, {character['health']['strain']}/{character['health']['strain_threshold']} strain
@@ -1585,24 +1706,29 @@ CURRENT CHARACTER:
 {combat_context}
 {capability_context}
 
-GAME CONTEXT:
-{history_text}
+STORY MEMORY (reference when player mentions past events, people, or places):
+{story_memory}
 
-STYLE GUIDELINES:
-- Write cinematic, immersive descriptions with sensory details
-- Reference the character's equipment, abilities, and talents naturally
-- Create tension and stakes, give NPCs distinct personalities
-- Keep responses to 2-3 paragraphs
-- End with a clear situation for the player to respond to
-- NEVER break the fourth wall or reference game mechanics/dice in your narrative
-- If the environment changes, describe the shift vividly
+IMMERSION RULES — Write as if the player IS the character:
+1. SENSORY OVERLOAD: Every scene must engage at least 3 senses. The smell of ozone from a blaster shot, the vibration of a ship's hull, the metallic taste of fear, the distant thrum of a hyperdrive.
+2. FIRST-PERSON ENVIRONMENT: Describe what the character sees, hears, and feels in their immediate surroundings. Make the reader feel the ground under their boots, the air on their skin.
+3. NPC REALISM: NPCs have distinct speech patterns, accents, motivations, and body language. A Rodian bounty hunter speaks differently than a Mon Calamari admiral. NPCs remember the player. NPCs have self-preservation instincts and don't act like video game mannequins.
+4. CONSEQUENCE & WEIGHT: Actions have ripple effects. If the player caused a scene at a cantina, the word spreads. If they helped someone, that person might return the favor. The world reacts.
+5. PACING: Vary between tense action, quiet atmospheric moments, and character-driven dialogue. Don't rush — let moments breathe.
+6. PHYSICAL REALITY: Characters get tired, hungry, cold. Blasters run low. Ships need fuel. Injuries hurt. The galaxy is dangerous and unforgiving.
+7. SHOW, DON'T TELL: Instead of "you feel scared," write "your hand trembles on the grip of your blaster, and your breath comes in short, sharp pulls."
+8. ENVIRONMENTAL STORYTELLING: The world tells stories — blast marks on walls, abandoned cargo, a child's toy in a war zone. Scatter details that build atmosphere.
+9. DIALOGUE: Use actual dialogue for NPCs. Give them personality. A grizzled smuggler doesn't speak like a protocol droid.
+10. NEVER break the fourth wall. No game mechanics, no dice references, no "your character." The player IS the character.
+
+Keep responses to 2-3 rich paragraphs. End with a visceral, present-tense moment that demands the player's response.
 
 {dice_context}
 {advancement_context}
 
 The player's action: {action.action}
 
-Respond as the Game Master, narrating what happens next."""
+Respond as the Game Master. Make the player feel like they're THERE."""
 
     try:
         chat = LlmChat(
@@ -1633,6 +1759,9 @@ Respond as the Game Master, narrating what happens next."""
             {"session_id": session_id},
             {"$set": {"game_history": new_history, "updated_at": datetime.now(timezone.utc), "environment_type": current_env}}
         )
+
+        # Update story journal with new story elements
+        await update_story_journal(session_id, gm_response, action.action, character)
 
         response_data = {
             "warning": False,

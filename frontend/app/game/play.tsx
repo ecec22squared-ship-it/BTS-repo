@@ -20,7 +20,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Audio } from 'expo-av';
 import { useGameStore } from '../../src/stores/gameStore';
 import { DiceDisplay } from '../../src/components/DiceDisplay';
-import { GalaxyMapLoading } from '../../src/components/GalaxyMapLoading';
+import { HoloTableGalaxy } from '../../src/components/HoloTableGalaxy';
 import { Character, DiceResult, GameMessage } from '../../src/types/game';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -235,7 +235,7 @@ export default function GamePlay() {
       <View style={[styles.container, { backgroundColor: '#050510' }]}>
         <SafeAreaView style={{ flex: 1 }}>
           <View style={styles.loadingContainer}>
-            <GalaxyMapLoading accentColor={envTheme.primary} />
+            <HoloTableGalaxy accentColor={envTheme.primary} />
           </View>
         </SafeAreaView>
       </View>
@@ -506,7 +506,7 @@ export default function GamePlay() {
             {/* Galaxy Map Loading while AI thinks */}
             {isSending && (
               <View style={styles.loadingBubble}>
-                <GalaxyMapLoading accentColor={envTheme.primary} />
+                <HoloTableGalaxy accentColor={envTheme.primary} />
               </View>
             )}
 

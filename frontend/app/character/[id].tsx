@@ -15,12 +15,19 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useGameStore } from '../../src/stores/gameStore';
 import { Character } from '../../src/types/game';
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const EXPO_PUBLIC_BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+
 export default function CharacterDetail() {
   const { id } = useLocalSearchParams();
   const { characters, fetchCharacters, generatePortrait, createGameSession } = useGameStore();
   const [character, setCharacter] = useState<Character | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
+  const [isContinuing, setIsContinuing] = useState(false);
+  const [hasExistingSession, setHasExistingSession] = useState(false);
+  const [latestSessionId, setLatestSessionId] = useState<string | null>(null);
 
   useEffect(() => {
     const char = characters.find((c) => c.character_id === id);
@@ -32,7 +39,40 @@ export default function CharacterDetail() {
         if (c) setCharacter(c);
       });
     }
+    // Check for existing session
+    checkForExistingSession();
   }, [id, characters]);
+
+  const checkForExistingSession = async () => {
+    try {
+      const token = await AsyncStorage.getItem('session_token');
+      const response = await fetch(
+        `${EXPO_PUBLIC_BACKEND_URL}/api/game/sessions/latest/${id}`,
+        { headers: { 'Authorization': `Bearer ${token}` }, credentials: 'include' }
+      );
+      if (response.ok) {
+        const data = await response.json();
+        if (data.has_session && data.session) {
+          setHasExistingSession(true);
+          setLatestSessionId(data.session.session_id);
+        }
+      }
+    } catch (error) {
+      console.error('Check session error:', error);
+    }
+  };
+
+  const handleContinueAdventure = async () => {
+    if (!character || !latestSessionId) return;
+    setIsContinuing(true);
+    try {
+      router.push(`/game/play?sessionId=${latestSessionId}&characterId=${character.character_id}`);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to continue adventure');
+    } finally {
+      setIsContinuing(false);
+    }
+  };
 
   const handleGeneratePortrait = async () => {
     if (!character) return;
@@ -278,10 +318,28 @@ export default function CharacterDetail() {
           ) : (
             <>
               <Ionicons name="play" size={24} color="#000" />
-              <Text style={styles.playButtonText}>Start Adventure</Text>
+              <Text style={styles.playButtonText}>Start New Adventure</Text>
             </>
           )}
         </TouchableOpacity>
+
+        {/* Continue Adventure Button */}
+        {hasExistingSession && (
+          <TouchableOpacity
+            style={styles.continueButton}
+            onPress={handleContinueAdventure}
+            disabled={isContinuing}
+          >
+            {isContinuing ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <>
+                <Ionicons name="reload" size={24} color="#fff" />
+                <Text style={styles.continueButtonText}>Continue Adventure</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -549,10 +607,27 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 12,
     marginTop: 8,
-    marginBottom: 32,
   },
   playButtonText: {
     color: '#000',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginLeft: 8,
+  },
+  continueButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(3, 169, 244, 0.2)',
+    paddingVertical: 16,
+    borderRadius: 12,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#03A9F4',
+    marginBottom: 32,
+  },
+  continueButtonText: {
+    color: '#03A9F4',
     fontSize: 18,
     fontWeight: 'bold',
     marginLeft: 8,
