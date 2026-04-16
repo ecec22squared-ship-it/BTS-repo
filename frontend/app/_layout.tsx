@@ -23,6 +23,7 @@ export default function RootLayout() {
         <Stack.Screen name="game/scenarios" />
         <Stack.Screen name="game/eras" />
         <Stack.Screen name="store" />
+        <Stack.Screen name="social" />
       </Stack>
     </SafeAreaProvider>
   );

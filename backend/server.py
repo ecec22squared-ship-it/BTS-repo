@@ -2538,6 +2538,96 @@ async def stripe_webhook(request: Request):
         return {"status": "error", "detail": str(e)}
 
 # ============================================================================
+# Story Export for Social Sharing
+# ============================================================================
+
+@api_router.get("/game/sessions/{session_id}/export-story")
+async def export_story(session_id: str, request: Request):
+    """Export a clean story from game session — strips dice rolls and player input"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    session = await db.game_sessions.find_one({"session_id": session_id, "user_id": user.user_id}, {"_id": 0})
+    if not session:
+        raise HTTPException(status_code=404, detail="Game session not found")
+    character = await db.characters.find_one({"character_id": session["character_id"]}, {"_id": 0})
+
+    history = session.get("game_history", [])
+    # Extract only GM responses, skip dice lines and player input
+    story_parts = []
+    for msg in history:
+        if msg.get("role") == "game_master":
+            story_parts.append(msg.get("content", ""))
+
+    # Stitch into continuous narrative
+    continuous_story = "\n\n".join(story_parts)
+
+    # Build header
+    char_name = character.get("name", "Unknown") if character else "Unknown"
+    char_species = character.get("species", "") if character else ""
+    char_career = character.get("career", "") if character else ""
+    location = session.get("current_location", "the galaxy")
+
+    header = f"═══════════════════════════════════\n✦ BEYOND THE STARS ✦\nA Star Wars Text RPG Powered by AI\n═══════════════════════════════════\n\nThe Story of {char_name}\n{char_species} {char_career} • {location}\n\n───────────────────────────────────\n"
+    footer = f"\n───────────────────────────────────\n\n✦ BEYOND THE STARS ✦\nCreate your own legend at beyondthestars.app\n═══════════════════════════════════"
+
+    full_story = header + continuous_story + footer
+
+    return {
+        "story": full_story,
+        "character_name": char_name,
+        "character_species": char_species,
+        "character_career": char_career,
+        "location": location,
+        "message_count": len(story_parts),
+    }
+
+@api_router.get("/characters/{character_id}/export-card")
+async def export_character_card(character_id: str, request: Request):
+    """Export character info for social sharing"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    character = await db.characters.find_one({"character_id": character_id, "user_id": user.user_id}, {"_id": 0})
+    if not character:
+        raise HTTPException(status_code=404, detail="Character not found")
+
+    stats = character.get("stats", {})
+    equipment_names = [e.get("name", "") for e in character.get("equipment", [])[:5]]
+
+    card_text = f"""═══════════════════════════════════
+✦ BEYOND THE STARS ✦
+A Star Wars Text RPG Powered by AI
+═══════════════════════════════════
+
+▸ {character['name']}
+  {character['species']} {character['career']}
+  Specialization: {character['specialization']}
+
+▸ Characteristics
+  BRN {stats.get('brawn',2)} | AGI {stats.get('agility',2)} | INT {stats.get('intellect',2)}
+  CUN {stats.get('cunning',2)} | WIL {stats.get('willpower',2)} | PRE {stats.get('presence',2)}
+
+▸ Gear: {', '.join(equipment_names)}
+▸ Credits: {character.get('credits', 500)}
+
+{character.get('backstory', '') if character.get('backstory') else ''}
+
+✦ Create your own legend at beyondthestars.app
+═══════════════════════════════════"""
+
+    return {
+        "card_text": card_text,
+        "character": {
+            "name": character["name"],
+            "species": character["species"],
+            "career": character["career"],
+            "specialization": character["specialization"],
+            "portrait_base64": character.get("portrait_base64"),
+        }
+    }
+
+# ============================================================================
 # Root endpoint
 # ============================================================================
 

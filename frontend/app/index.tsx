@@ -277,6 +277,20 @@ export default function Index() {
             </View>
             <Ionicons name="chevron-forward" size={24} color="#666" />
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => router.push('/social')}
+          >
+            <View style={[styles.menuIcon, { backgroundColor: 'rgba(88, 101, 242, 0.15)' }]}>
+              <Ionicons name="share-social" size={32} color="#5865F2" />
+            </View>
+            <View style={styles.menuTextContainer}>
+              <Text style={styles.menuTitle}>Social Media</Text>
+              <Text style={styles.menuDescription}>Follow us & share your adventures</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={24} color="#666" />
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </SafeAreaView>
