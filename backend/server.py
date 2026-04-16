@@ -231,6 +231,51 @@ SPECIES_DATA = {
         "strain_bonus": 0,
         "special": "Immune to mind-affecting abilities, does not heal naturally",
         "appearance": "Metallic chassis, photoreceptor eyes that glow, varied plating from polished to battle-scarred."
+    },
+    "Trandoshan": {
+        "description": "Fearsome reptilian hunters from Trandosha who worship the Scorekeeper. They earn honor through the hunt, and their brutal claws and regeneration make them terrifying combatants.",
+        "stat_bonuses": {"brawn": 1},
+        "starting_xp": 90,
+        "wound_bonus": 1,
+        "strain_bonus": -1,
+        "special": "Claws (+1 Brawl damage), Regeneration (heal 1 extra wound per rest), free rank in Perception",
+        "appearance": "Thick green, orange, or brown reptilian scales, heavy brow ridges, slit-pupil predatory eyes, three clawed fingers, hunched powerful build, sharp teeth visible in a perpetual snarl."
+    },
+    "Chiss": {
+        "description": "Blue-skinned near-humans from the Unknown Regions. Cold, calculating, and supremely tactical, the Chiss Ascendancy values discipline and strategic brilliance above all.",
+        "stat_bonuses": {"intellect": 1},
+        "starting_xp": 100,
+        "wound_bonus": 1,
+        "strain_bonus": 1,
+        "special": "Infrared Vision (remove setback from darkness), free rank in Cool",
+        "appearance": "Blue skin ranging from pale frost to deep cobalt, glowing red eyes with no visible pupil, jet-black hair, sharp aristocratic features, impeccable military posture."
+    },
+    "Zabrak": {
+        "description": "Proud, fierce near-humans from Iridonia, recognizable by their crown of vestigial horns. Two hearts give them extraordinary endurance, and a cultural tradition of pain tolerance makes them relentless.",
+        "stat_bonuses": {"willpower": 1},
+        "starting_xp": 100,
+        "wound_bonus": 0,
+        "strain_bonus": 0,
+        "special": "Fearsome Countenance (+1 Boost to Coercion), second heart grants +1 Boost to Resilience checks",
+        "appearance": "Crown of short horns ringing the skull, bold geometric facial tattoos in black or red, skin tones from pale to dark brown or red (Dathomirian), intense focused eyes, lean muscular frame."
+    },
+    "Togruta": {
+        "description": "Communal hunters from the grasslands of Shili. Their hollow montrals grant passive echolocation, and their pack-hunting instincts make them natural team players and perceptive combatants.",
+        "stat_bonuses": {"cunning": 1},
+        "starting_xp": 100,
+        "wound_bonus": -1,
+        "strain_bonus": 1,
+        "special": "Echolocation (spatial awareness, +1 Boost to Perception), Pack Instinct (+1 Boost when assisting allies)",
+        "appearance": "Vibrant skin in orange, red, or blue-gray, bold white facial markings, tall hollow montrals (head horns) with blue-and-white striped patterns, three colorful head-tails (lekku), large expressive eyes."
+    },
+    "Mon Calamari": {
+        "description": "Amphibious beings from the ocean world of Mon Cala. Brilliant engineers and tacticians, they built the Rebel Alliance's finest warships. Their large eyes see perfectly in darkness and underwater.",
+        "stat_bonuses": {"intellect": 1},
+        "starting_xp": 100,
+        "wound_bonus": 0,
+        "strain_bonus": 0,
+        "special": "Amphibious (breathe underwater), Enhanced Vision (see in darkness and murky water), free rank in Knowledge (Education)",
+        "appearance": "Salmon or russet-colored rubbery skin with lighter underbelly, large bulbous eyes on the sides of the head providing wide-angle vision, webbed hands, high domed cranium, moist glistening skin."
     }
 }
 
