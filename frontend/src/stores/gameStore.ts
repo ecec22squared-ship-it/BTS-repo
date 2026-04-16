@@ -32,7 +32,7 @@ interface GameState {
   fetchGameSessions: () => Promise<GameSession[]>;
   loadGameSession: (sessionId: string) => Promise<void>;
   startGame: (sessionId: string) => Promise<any>;
-  sendAction: (sessionId: string, action: string, skill?: string) => Promise<any>;
+  sendAction: (sessionId: string, action: string, skill?: string, forceAction?: boolean) => Promise<any>;
   
   // Dice
   rollDice: (dicePool: {
@@ -225,7 +225,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     return response.json();
   },
 
-  sendAction: async (sessionId, action, skill) => {
+  sendAction: async (sessionId, action, skill, forceAction) => {
     const headers = await getAuthHeader();
     const response = await fetch(
       `${EXPO_PUBLIC_BACKEND_URL}/api/game/sessions/${sessionId}/action`,
@@ -233,7 +233,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         method: 'POST',
         headers,
         credentials: 'include',
-        body: JSON.stringify({ action, skill }),
+        body: JSON.stringify({ action, skill, force_action: forceAction || false }),
       }
     );
 

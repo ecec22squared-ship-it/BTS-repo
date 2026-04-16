@@ -104,6 +104,9 @@ class Character(BaseModel):
     credits: int = 500
     portrait_base64: Optional[str] = None
     backstory: Optional[str] = None
+    skill_usage: Dict[str, int] = Field(default_factory=dict)  # tracks usage count per skill
+    skill_talents: List[str] = Field(default_factory=list)  # unlocked specialist talents
+    total_skill_ups: int = 0  # total rank-ups earned through use
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class CharacterCreate(BaseModel):
@@ -172,6 +175,7 @@ class DiceResult(BaseModel):
 class PlayerAction(BaseModel):
     action: str
     skill: Optional[str] = None
+    force_action: bool = False  # True = player confirmed after warning
 
 # ============================================================================
 # Game Data - Species, Careers, Skills, Equipment, Environments
@@ -278,6 +282,271 @@ SPECIES_DATA = {
         "appearance": "Salmon or russet-colored rubbery skin with lighter underbelly, large bulbous eyes on the sides of the head providing wide-angle vision, webbed hands, high domed cranium, moist glistening skin."
     }
 }
+
+# ============================================================================
+# Species Cultural Gear
+# ============================================================================
+
+SPECIES_CULTURAL_GEAR = {
+    "Human": [
+        {"name": "Personal Holoprojector", "category": "gear", "description": "Portable hologram device for messages and star charts, ubiquitous among spacers"},
+        {"name": "Imperial Travel Papers", "category": "gear", "description": "Forged or legitimate documentation for crossing Imperial checkpoints"},
+    ],
+    "Twi'lek": [
+        {"name": "Ceremonial Lekku Wraps", "category": "gear", "description": "Embroidered silk wraps in clan colors, worn during important negotiations"},
+        {"name": "Rylothean Heat Stone", "category": "gear", "description": "Polished volcanic stone from Ryloth, radiates warmth and cultural pride"},
+    ],
+    "Wookiee": [
+        {"name": "Ryyk Blade", "category": "weapon", "description": "Traditional Kashyyyk war blade, curved wood-and-metal construction, +1 Melee damage"},
+        {"name": "Braided Honor Bandolier", "category": "armor", "description": "Woven from wroshyr tree bark, each braid represents a life debt or victory"},
+    ],
+    "Rodian": [
+        {"name": "Hunting Trophy Collection", "category": "gear", "description": "Preserved teeth, claws, and horns from past hunts, displayed with pride"},
+        {"name": "Rodian Tracking Goggles", "category": "gear", "description": "Multi-spectrum lenses calibrated for Rodian eyes, +1 Boost to tracking"},
+    ],
+    "Bothan": [
+        {"name": "Encrypted Spy Datapad", "category": "gear", "description": "Military-grade encryption, connects to the Bothan Spynet's dead-drop network"},
+        {"name": "Information Broker Token", "category": "gear", "description": "Black market credential chip granting access to underworld data exchanges"},
+    ],
+    "Droid": [
+        {"name": "Self-Repair Module", "category": "gear", "description": "Autonomous micro-welder and circuit patcher, heals 1 wound per rest without tools"},
+        {"name": "Memory Core Backup Chip", "category": "gear", "description": "Encrypted personality and memory backup, protection against memory wipes"},
+    ],
+    "Trandoshan": [
+        {"name": "Scorekeeper Tally Device", "category": "gear", "description": "Sacred wrist-mounted counter tracking jagannath points from each hunt"},
+        {"name": "Trandoshan Hunting Claws", "category": "weapon", "description": "Sharpened natural claw sheaths, ritual-hardened bone tips, +1 Brawl damage"},
+    ],
+    "Chiss": [
+        {"name": "Ascendancy Insignia", "category": "gear", "description": "Charric-metal rank pin from the Chiss Defense Fleet, commands respect in the Unknown Regions"},
+        {"name": "Tactical Analysis Monocle", "category": "gear", "description": "Heads-up display lens with threat assessment overlay, +1 Boost to initiative"},
+    ],
+    "Zabrak": [
+        {"name": "Iridonian War Paint Kit", "category": "gear", "description": "Ritual pigments in clan patterns, applied before battle for intimidation and focus"},
+        {"name": "Horn-Care Ritual Oil", "category": "gear", "description": "Sacred oil that hardens vestigial horns, part of the coming-of-age ceremony"},
+    ],
+    "Togruta": [
+        {"name": "Akul-Tooth Trophy Necklace", "category": "gear", "description": "Fangs from the deadly akul beast, proving the wearer survived the solo hunt rite"},
+        {"name": "Shili Hunting Horn", "category": "gear", "description": "Curved bone horn used to coordinate pack hunts, carries for kilometers across grassland"},
+    ],
+    "Mon Calamari": [
+        {"name": "Aquatic Rebreather", "category": "gear", "description": "Keeps gills moist in dry environments, doubles as emergency underwater oxygen supply"},
+        {"name": "Mon Cala Ship Schematics", "category": "gear", "description": "Encrypted cruiser blueprints passed down through shipwright families, invaluable to Rebels"},
+    ],
+}
+
+# ============================================================================
+# Skill Advancement System - Use-Based XP
+# ============================================================================
+
+# Doubled thresholds: uses required for each rank
+SKILL_RANK_THRESHOLDS = {
+    2: 6,    # 6 uses to reach rank 2
+    3: 16,   # 16 uses to reach rank 3
+    4: 30,   # 30 uses to reach rank 4
+    5: 50,   # 50 uses to reach rank 5
+}
+
+# Specialist talents unlocked at certain ranks
+SKILL_SPECIALIST_TALENTS = {
+    "Ranged (Light)": {
+        3: {"name": "Quick Draw", "description": "Draw and fire in a single action, +1 Boost on first attack"},
+        5: {"name": "Deadeye", "description": "Spend an action aiming to add +2 Boost to next Ranged (Light) attack"},
+    },
+    "Ranged (Heavy)": {
+        3: {"name": "Suppressive Fire", "description": "Pin enemies behind cover, adding +1 Setback to their next action"},
+        5: {"name": "Heavy Hitter", "description": "Critical hits with heavy weapons deal +10 critical result"},
+    },
+    "Brawl": {
+        3: {"name": "Iron Fist", "description": "+1 damage to all Brawl attacks permanently"},
+        5: {"name": "Bone Breaker", "description": "On 3+ net successes, target suffers a Critical Injury"},
+    },
+    "Melee": {
+        3: {"name": "Blade Dancer", "description": "+1 Boost to Melee when wielding a bladed weapon"},
+        5: {"name": "Whirlwind Strike", "description": "Attack two adjacent enemies with a single Melee check"},
+    },
+    "Stealth": {
+        3: {"name": "Shadow Meld", "description": "Remain hidden after attacking once per encounter"},
+        5: {"name": "Ghost Walk", "description": "Move at full speed while maintaining Stealth, no penalty"},
+    },
+    "Perception": {
+        3: {"name": "Keen Senses", "description": "Automatically detect hidden enemies within short range"},
+        5: {"name": "Danger Sense", "description": "+1 Boost to all initiative checks, cannot be surprised"},
+    },
+    "Piloting (Space)": {
+        3: {"name": "Evasive Maneuvers", "description": "+1 Setback to enemy attacks while piloting"},
+        5: {"name": "Ace Pilot", "description": "Perform two pilot actions per turn instead of one"},
+    },
+    "Piloting (Planetary)": {
+        3: {"name": "Terrain Specialist", "description": "Ignore difficult terrain penalties while driving"},
+        5: {"name": "Stunt Driver", "description": "Perform impossible vehicle maneuvers at reduced difficulty"},
+    },
+    "Charm": {
+        3: {"name": "Silver Tongue", "description": "+1 Boost to Charm when first meeting someone"},
+        5: {"name": "Irresistible", "description": "Targets of Charm checks cannot spend Threat against you"},
+    },
+    "Deception": {
+        3: {"name": "Convincing Liar", "description": "Targets need an extra Success to see through your lies"},
+        5: {"name": "Master of Disguise", "description": "Maintain false identity indefinitely, +2 Boost to disguise checks"},
+    },
+    "Coercion": {
+        3: {"name": "Menacing Presence", "description": "Intimidated targets suffer +1 Setback to their next check"},
+        5: {"name": "Terrifying", "description": "Weak-willed NPCs flee or surrender on a successful Coercion"},
+    },
+    "Negotiation": {
+        3: {"name": "Shrewd Bargainer", "description": "Always get 10% better prices on purchases and sales"},
+        5: {"name": "Master Dealer", "description": "Once per session, change the terms of any deal retroactively"},
+    },
+    "Computers": {
+        3: {"name": "Back Door", "description": "Leave a hidden access point in any system you slice"},
+        5: {"name": "Ghost in the Machine", "description": "Slice remotely through any connected network without physical access"},
+    },
+    "Mechanics": {
+        3: {"name": "Jury Rig", "description": "Temporarily repair any device with improvised materials"},
+        5: {"name": "Master Tinkerer", "description": "Add a permanent modification to any weapon or device"},
+    },
+    "Medicine": {
+        3: {"name": "Field Surgeon", "description": "Heal 2 extra wounds when using Medicine to treat injuries"},
+        5: {"name": "Miracle Worker", "description": "Revive an incapacitated ally once per session"},
+    },
+    "Athletics": {
+        3: {"name": "Peak Fitness", "description": "+1 to wound threshold permanently"},
+        5: {"name": "Unstoppable", "description": "Ignore the first Critical Injury suffered each session"},
+    },
+    "Vigilance": {
+        3: {"name": "Always Ready", "description": "+1 Boost to initiative checks in unexpected situations"},
+        5: {"name": "Combat Prescience", "description": "Act first in the initiative order once per session"},
+    },
+    "Survival": {
+        3: {"name": "Forager", "description": "Find food and water in any environment, no check required"},
+        5: {"name": "One With Nature", "description": "+1 Boost to all checks while outdoors or in wilderness"},
+    },
+    "Streetwise": {
+        3: {"name": "Connected", "description": "Always know a contact in any settlement you visit"},
+        5: {"name": "Underworld King", "description": "Access black market goods at half price, fences ask no questions"},
+    },
+    "Cool": {
+        3: {"name": "Unflappable", "description": "Recover 2 strain at the start of each encounter"},
+        5: {"name": "Ice Cold", "description": "Immune to Fear effects, allies within short range get +1 Boost to Discipline"},
+    },
+    "Discipline": {
+        3: {"name": "Iron Will", "description": "+1 strain threshold permanently"},
+        5: {"name": "Indomitable", "description": "Once per session, automatically succeed on a Discipline check"},
+    },
+    "Leadership": {
+        3: {"name": "Inspiring Words", "description": "Allies recover 1 strain when you succeed on a Leadership check"},
+        5: {"name": "Born Leader", "description": "Grant an ally an extra action once per encounter"},
+    },
+    "Skulduggery": {
+        3: {"name": "Sleight of Hand", "description": "Palm objects or plant items undetected, +1 Boost"},
+        5: {"name": "Master Thief", "description": "Bypass any mechanical lock or electronic security without a check"},
+    },
+    "Coordination": {
+        3: {"name": "Cat-like Reflexes", "description": "Reduce fall damage by half, +1 Boost to dodge"},
+        5: {"name": "Acrobatic Strike", "description": "Use Coordination instead of combat skill once per encounter"},
+    },
+    "Resilience": {
+        3: {"name": "Tough as Nails", "description": "+1 soak against all damage sources"},
+        5: {"name": "Indestructible", "description": "Reduce all Critical Injury results by 20"},
+    },
+}
+
+# Stat improvement milestones (every 20 total skill-ups)
+STAT_IMPROVEMENT_THRESHOLD = 20
+
+def process_skill_advancement(character: dict, skill_name: str) -> dict:
+    """Process skill usage and check for rank-up / talent unlock.
+    Returns advancement info dict."""
+    skill_usage = character.get("skill_usage", {})
+    current_uses = skill_usage.get(skill_name, 0) + 1
+    skill_usage[skill_name] = current_uses
+
+    advancement = {"skill_name": skill_name, "new_uses": current_uses, "ranked_up": False, "new_rank": 0, "talent_unlocked": None, "stat_improved": False}
+
+    # Find current skill rank
+    current_rank = 0
+    for s in character.get("skills", []):
+        if s["name"] == skill_name:
+            current_rank = s.get("rank", 0)
+            break
+
+    # Check for rank-up
+    next_rank = current_rank + 1
+    if next_rank <= 5:
+        threshold = SKILL_RANK_THRESHOLDS.get(next_rank, 999)
+        if current_uses >= threshold:
+            advancement["ranked_up"] = True
+            advancement["new_rank"] = next_rank
+
+            # Check for talent unlock
+            talents = SKILL_SPECIALIST_TALENTS.get(skill_name, {})
+            if next_rank in talents:
+                advancement["talent_unlocked"] = talents[next_rank]
+
+    return advancement, skill_usage
+
+def assess_action_difficulty(character: dict, skill_name: str, action_text: str) -> dict:
+    """Assess whether the action is beyond the character's capability and generate a warning."""
+    # Find skill rank
+    skill_rank = 0
+    skill_char = "brawn"
+    for s in character.get("skills", []):
+        if s["name"] == skill_name:
+            skill_rank = s.get("rank", 0)
+            skill_char = s.get("characteristic", "brawn")
+            break
+    else:
+        # Completely unknown skill - check ALL_SKILLS for the characteristic
+        for sk in ALL_SKILLS:
+            if sk["name"] == skill_name:
+                skill_char = sk["characteristic"]
+                break
+
+    stat_value = character.get("stats", {}).get(skill_char, 2)
+    total_dice = skill_rank + stat_value
+
+    # Determine difficulty context
+    is_untrained = skill_rank == 0
+    is_low_stat = stat_value <= 2
+    is_very_hard = total_dice <= 2  # Only 2 green dice vs any difficulty
+
+    warning = None
+    severity = "none"
+
+    if is_untrained and is_low_stat:
+        severity = "severe"
+        career = character.get("career", "adventurer")
+        species = character.get("species", "being")
+        warning = (
+            f"Your character {character.get('name', 'you')} has NO training in {skill_name} "
+            f"and lacks natural aptitude in {skill_char.title()} (stat: {stat_value}). "
+            f"As a {species} {career}, this is far outside your expertise. "
+            f"With only {total_dice} dice against the challenge, failure is very likely "
+            f"and could have serious consequences. "
+            f"Consider using a skill you're trained in, or finding another approach."
+        )
+    elif is_untrained and not is_low_stat:
+        severity = "moderate"
+        warning = (
+            f"Your character has no formal training in {skill_name}. "
+            f"You're relying entirely on raw {skill_char.title()} ({stat_value}). "
+            f"You might pull it off on instinct, but don't count on it."
+        )
+    elif is_very_hard:
+        severity = "hard"
+        warning = (
+            f"This action requires exceptional {skill_name} ability. "
+            f"Your current skill pool ({total_dice} dice) makes success unlikely against this challenge. "
+            f"The odds are stacked heavily against you."
+        )
+
+    return {
+        "warning": warning,
+        "severity": severity,
+        "skill_rank": skill_rank,
+        "stat_value": stat_value,
+        "total_dice": total_dice,
+        "is_untrained": is_untrained,
+    }
 
 CAREER_DATA = {
     "Bounty Hunter": {
@@ -953,6 +1222,11 @@ async def create_character(char_data: CharacterCreate, request: Request):
     for item in career_equip.get(char_data.specialization, []):
         equipment.append(item)
 
+    # Add species cultural gear
+    cultural_gear = SPECIES_CULTURAL_GEAR.get(char_data.species, [])
+    for item in cultural_gear:
+        equipment.append(item)
+
     character = Character(
         user_id=user.user_id,
         name=char_data.name,
@@ -1181,6 +1455,25 @@ async def player_action(session_id: str, action: PlayerAction, request: Request)
     in_combat = session.get("combat_state", {}).get("in_combat", False)
     difficulty = determine_difficulty(action.action, in_combat)
 
+    # === ACTION CAPABILITY WARNING SYSTEM ===
+    if skill_name and not action.force_action:
+        assessment = assess_action_difficulty(character, skill_name, action.action)
+        if assessment["warning"] and assessment["severity"] in ("severe", "hard"):
+            # Return warning — don't process yet. Player must confirm.
+            return {
+                "warning": True,
+                "warning_message": assessment["warning"],
+                "warning_severity": assessment["severity"],
+                "skill_assessed": skill_name,
+                "skill_rank": assessment["skill_rank"],
+                "stat_value": assessment["stat_value"],
+                "total_dice": assessment["total_dice"],
+                "requires_confirmation": True,
+                "gm_response": None,
+                "dice_result": None,
+            }
+
+    # === DICE ROLL ===
     dice_result = None
     dice_roll_obj = None
     dice_line = None
@@ -1191,7 +1484,43 @@ async def player_action(session_id: str, action: PlayerAction, request: Request)
             dice_result = roll_dice_pool(dice_roll_obj)
             dice_line = format_dice_line(skill_name, dice_roll_obj, dice_result)
 
-    # Build context for AI
+    # === SKILL ADVANCEMENT ===
+    advancement_info = None
+    if skill_name and dice_result:
+        advancement, updated_usage = process_skill_advancement(character, skill_name)
+        
+        # Apply advancement to database
+        update_ops = {"$set": {"skill_usage": updated_usage}}
+        
+        if advancement["ranked_up"]:
+            # Update the skill rank in the skills array
+            new_skills = character.get("skills", [])
+            for i, s in enumerate(new_skills):
+                if s["name"] == skill_name:
+                    new_skills[i]["rank"] = advancement["new_rank"]
+                    break
+            update_ops["$set"]["skills"] = new_skills
+            update_ops["$inc"] = {"total_skill_ups": 1}
+            
+            # Check for stat improvement milestone
+            total_ups = character.get("total_skill_ups", 0) + 1
+            if total_ups > 0 and total_ups % STAT_IMPROVEMENT_THRESHOLD == 0:
+                advancement["stat_improved"] = True
+            
+            # Unlock talent if applicable
+            if advancement["talent_unlocked"]:
+                talent_name = advancement["talent_unlocked"]["name"]
+                existing_talents = character.get("skill_talents", [])
+                if talent_name not in existing_talents:
+                    existing_talents.append(talent_name)
+                    update_ops["$set"]["skill_talents"] = existing_talents
+        
+        await db.characters.update_one({"character_id": character["character_id"]}, update_ops)
+        
+        if advancement["ranked_up"]:
+            advancement_info = advancement
+
+    # === BUILD AI CONTEXT ===
     recent_history = session.get("game_history", [])[-10:]
     history_text = "\n".join([f"{msg['role']}: {msg['content']}" for msg in recent_history])
 
@@ -1200,6 +1529,20 @@ async def player_action(session_id: str, action: PlayerAction, request: Request)
         enemies = session["combat_state"].get("enemies", [])
         enemy_text = ", ".join([f"{e['name']} ({e['wounds']}/{e['wound_threshold']} wounds)" for e in enemies])
         combat_context = f"\nCURRENT COMBAT: Fighting against {enemy_text}"
+
+    # Capability context for the AI GM
+    capability_context = ""
+    if skill_name:
+        assessment = assess_action_difficulty(character, skill_name, action.action)
+        if assessment["severity"] == "severe":
+            capability_context = f"""
+CHARACTER LIMITATION: {character['name']} is UNTRAINED in {skill_name} with low {assessment.get('stat_value', 2)} in the governing characteristic.
+This should be reflected in the narrative — describe the character's hesitation, unfamiliarity, and struggle with this task.
+They're clearly out of their depth. Even if the dice succeed, describe it as barely scraping by or lucky instinct."""
+        elif assessment["severity"] == "moderate":
+            capability_context = f"""
+CHARACTER NOTE: {character['name']} has no formal training in {skill_name} but is attempting it on raw talent alone.
+Reflect this in the narrative — they're improvising, not executing with practiced skill."""
 
     dice_context = ""
     if dice_result:
@@ -1215,7 +1558,18 @@ IMPORTANT: Weave the dice result into your narrative naturally. If the roll succ
 Do NOT mention dice, numbers, or game mechanics directly in your story text - keep it purely narrative.
 """
 
+    # Advancement narrative hint
+    advancement_context = ""
+    if advancement_info and advancement_info["ranked_up"]:
+        talent_text = ""
+        if advancement_info["talent_unlocked"]:
+            talent_text = f" They have also unlocked a new ability: {advancement_info['talent_unlocked']['name']} - {advancement_info['talent_unlocked']['description']}."
+        advancement_context = f"""
+SKILL GROWTH: Through repeated use, {character['name']}'s {skill_name} has improved to rank {advancement_info['new_rank']}!{talent_text}
+Subtly weave this growth into the narrative - perhaps they notice their reflexes are sharper, their aim more steady, their words more persuasive. Don't state it mechanically."""
+
     equipment_list = ", ".join([e["name"] for e in character.get("equipment", [])]) if character.get("equipment") else "basic gear"
+    talents_list = ", ".join(character.get("skill_talents", [])) if character.get("skill_talents") else "none"
 
     system_prompt = f"""You are the Game Master for a Star Wars: Edge of the Empire tabletop RPG.
 You create immersive, cinematic narratives set at the edge of the Star Wars galaxy.
@@ -1227,21 +1581,24 @@ CURRENT CHARACTER:
 - Location: {session['current_location']}
 - Health: {character['health']['wounds']}/{character['health']['wound_threshold']} wounds, {character['health']['strain']}/{character['health']['strain_threshold']} strain
 - Equipment: {equipment_list}
+- Specialist Talents: {talents_list}
 {combat_context}
+{capability_context}
 
 GAME CONTEXT:
 {history_text}
 
 STYLE GUIDELINES:
 - Write cinematic, immersive descriptions with sensory details
-- Reference the character's equipment and abilities naturally
+- Reference the character's equipment, abilities, and talents naturally
 - Create tension and stakes, give NPCs distinct personalities
 - Keep responses to 2-3 paragraphs
 - End with a clear situation for the player to respond to
 - NEVER break the fourth wall or reference game mechanics/dice in your narrative
-- If the environment changes (entering a cantina, going outside, flying into space, etc.), describe the shift vividly
+- If the environment changes, describe the shift vividly
 
 {dice_context}
+{advancement_context}
 
 The player's action: {action.action}
 
@@ -1278,6 +1635,7 @@ Respond as the Game Master, narrating what happens next."""
         )
 
         response_data = {
+            "warning": False,
             "gm_response": gm_response,
             "dice_result": dice_result.model_dump() if dice_result else None,
             "dice_line": dice_line,
@@ -1285,6 +1643,7 @@ Respond as the Game Master, narrating what happens next."""
             "environment_type": current_env,
             "environment_theme": ENVIRONMENT_THEMES.get(current_env, ENVIRONMENT_THEMES["urban"]),
             "skill_used": skill_name,
+            "advancement": advancement_info,
         }
         return response_data
 

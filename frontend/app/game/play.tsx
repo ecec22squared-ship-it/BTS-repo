@@ -74,6 +74,10 @@ export default function GamePlay() {
   const [sceneImage, setSceneImage] = useState<string | null>(null);
   const [isGeneratingScene, setIsGeneratingScene] = useState(false);
   const [soundObj, setSoundObj] = useState<Audio.Sound | null>(null);
+  const [pendingWarning, setPendingWarning] = useState<any>(null);
+  const [pendingAction, setPendingAction] = useState<string>('');
+  const [pendingSkill, setPendingSkill] = useState<string | null>(null);
+  const [advancementNotif, setAdvancementNotif] = useState<any>(null);
 
   const scrollViewRef = useRef<ScrollView>(null);
   const prevEnvRef = useRef<string>('urban');
@@ -143,46 +147,81 @@ export default function GamePlay() {
     }
   };
 
-  const handleSendAction = async () => {
-    if (!inputText.trim() || !currentSession) return;
-    const action = inputText.trim();
-    setInputText('');
+  const handleSendAction = async (forceAction: boolean = false, overrideAction?: string, overrideSkill?: string | null) => {
+    const action = overrideAction || inputText.trim();
+    const skill = overrideSkill !== undefined ? overrideSkill : (selectedSkill || undefined);
+    if (!action || !currentSession) return;
+    
+    if (!overrideAction) setInputText('');
     setIsSending(true);
+    setPendingWarning(null);
     Keyboard.dismiss();
 
     const playerMessage: GameMessage & { dice_line?: string } = {
       role: 'player', content: action, timestamp: new Date().toISOString()
     };
-    setMessages(prev => [...prev, playerMessage]);
+    if (!overrideAction) setMessages(prev => [...prev, playerMessage]);
 
     try {
-      const result = await sendAction(currentSession.session_id, action, selectedSkill || undefined);
+      const result = await sendAction(currentSession.session_id, action, skill, forceAction);
+
+      // Handle warning response
+      if (result.warning && result.requires_confirmation) {
+        setPendingWarning(result);
+        setPendingAction(action);
+        setPendingSkill(skill || null);
+        setIsSending(false);
+        // Remove the premature player message since we're pausing
+        if (!overrideAction) setMessages(prev => prev.slice(0, -1));
+        return;
+      }
+
       const gmMessage: GameMessage & { dice_line?: string } = {
         role: 'game_master', content: result.gm_response,
         dice_line: result.dice_line || undefined, timestamp: new Date().toISOString()
       };
-      setMessages(prev => [...prev, gmMessage]);
+      // If this was a forced action, add the player msg first
+      if (overrideAction) {
+        setMessages(prev => [...prev, playerMessage, gmMessage]);
+      } else {
+        setMessages(prev => [...prev, gmMessage]);
+      }
 
       if (result.dice_result) setLastDiceResult(result.dice_result);
       else setLastDiceResult(null);
 
-      // Update environment theme if changed
       if (result.environment_theme) {
         setEnvTheme(result.environment_theme);
-        // If environment changed, regenerate scene
         if (result.environment_type && result.environment_type !== prevEnvRef.current) {
           prevEnvRef.current = result.environment_type;
           generateSceneAsync(currentSession.session_id);
         }
       }
 
+      // Show advancement notification
+      if (result.advancement && result.advancement.ranked_up) {
+        setAdvancementNotif(result.advancement);
+        setTimeout(() => setAdvancementNotif(null), 6000);
+      }
+
       setSelectedSkill(null);
     } catch (error) {
       console.error('Send action error:', error);
-      setMessages(prev => prev.slice(0, -1));
+      if (!overrideAction) setMessages(prev => prev.slice(0, -1));
     } finally {
       setIsSending(false);
     }
+  };
+
+  const handleForceAction = () => {
+    setPendingWarning(null);
+    handleSendAction(true, pendingAction, pendingSkill);
+  };
+
+  const handleCancelAction = () => {
+    setPendingWarning(null);
+    setPendingAction('');
+    setPendingSkill(null);
   };
 
   useEffect(() => {
@@ -476,6 +515,50 @@ export default function GamePlay() {
             )}
           </ScrollView>
 
+          {/* Warning Overlay - when character attempts something beyond their capability */}
+          {pendingWarning && (
+            <View style={styles.warningOverlay}>
+              <View style={[styles.warningCard, { borderColor: pendingWarning.warning_severity === 'severe' ? '#F44336' : '#FF9800' }]}>
+                <View style={styles.warningHeader}>
+                  <Ionicons name="warning" size={24} color={pendingWarning.warning_severity === 'severe' ? '#F44336' : '#FF9800'} />
+                  <Text style={[styles.warningTitle, { color: pendingWarning.warning_severity === 'severe' ? '#F44336' : '#FF9800' }]}>
+                    {pendingWarning.warning_severity === 'severe' ? 'Extremely Risky' : 'Difficult Challenge'}
+                  </Text>
+                </View>
+                <Text style={styles.warningText}>{pendingWarning.warning_message}</Text>
+                <View style={styles.warningStats}>
+                  <Text style={styles.warningStat}>Skill: {pendingWarning.skill_assessed} (Rank {pendingWarning.skill_rank})</Text>
+                  <Text style={styles.warningStat}>Dice Pool: {pendingWarning.total_dice} dice</Text>
+                </View>
+                <View style={styles.warningButtons}>
+                  <TouchableOpacity style={styles.warningCancelBtn} onPress={handleCancelAction}>
+                    <Text style={styles.warningCancelText}>Reconsider</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.warningForceBtn, { backgroundColor: pendingWarning.warning_severity === 'severe' ? '#F44336' : '#FF9800' }]} onPress={handleForceAction}>
+                    <Text style={styles.warningForceText}>Attempt Anyway</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* Advancement Notification */}
+          {advancementNotif && (
+            <View style={[styles.advancementBanner, { borderColor: envTheme.primary }]}>
+              <Ionicons name="arrow-up-circle" size={20} color={envTheme.primary} />
+              <View style={styles.advancementText}>
+                <Text style={[styles.advancementTitle, { color: envTheme.primary }]}>
+                  {advancementNotif.skill_name} Rank {advancementNotif.new_rank}!
+                </Text>
+                {advancementNotif.talent_unlocked && (
+                  <Text style={styles.advancementTalent}>
+                    Unlocked: {advancementNotif.talent_unlocked.name} - {advancementNotif.talent_unlocked.description}
+                  </Text>
+                )}
+              </View>
+            </View>
+          )}
+
           {/* Skills Panel */}
           {showSkills && (
             <View style={[styles.skillsPanel, { backgroundColor: `${envTheme.background}E6` }]}>
@@ -709,4 +792,56 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
   },
   sendButtonDisabled: { opacity: 0.4 },
+
+  // Warning overlay
+  warningOverlay: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center',
+    alignItems: 'center', zIndex: 100, padding: 20,
+  },
+  warningCard: {
+    backgroundColor: 'rgba(20,10,10,0.95)', borderRadius: 16,
+    padding: 20, borderWidth: 2, width: '100%', maxWidth: 360,
+  },
+  warningHeader: {
+    flexDirection: 'row', alignItems: 'center', marginBottom: 12,
+  },
+  warningTitle: {
+    fontSize: 18, fontWeight: 'bold', marginLeft: 10,
+  },
+  warningText: {
+    color: '#ccc', fontSize: 14, lineHeight: 21, marginBottom: 12,
+  },
+  warningStats: {
+    backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 8,
+    padding: 10, marginBottom: 16,
+  },
+  warningStat: {
+    color: '#999', fontSize: 12, marginBottom: 2, fontFamily: 'monospace',
+  },
+  warningButtons: {
+    flexDirection: 'row', justifyContent: 'space-between',
+  },
+  warningCancelBtn: {
+    flex: 1, paddingVertical: 12, borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.1)', marginRight: 8,
+    alignItems: 'center',
+  },
+  warningCancelText: { color: '#fff', fontWeight: '600', fontSize: 14 },
+  warningForceBtn: {
+    flex: 1, paddingVertical: 12, borderRadius: 8,
+    alignItems: 'center',
+  },
+  warningForceText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
+
+  // Advancement notification
+  advancementBanner: {
+    position: 'absolute', bottom: 80, left: 16, right: 16,
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.85)', borderRadius: 12,
+    padding: 14, borderWidth: 1, zIndex: 50,
+  },
+  advancementText: { flex: 1, marginLeft: 10 },
+  advancementTitle: { fontSize: 15, fontWeight: 'bold' },
+  advancementTalent: { color: '#aaa', fontSize: 12, marginTop: 2 },
 });
