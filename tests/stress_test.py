@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""5+ Player Concurrent Stress Test on Nar Shaddaa during Order 66
+"""5+ Player Concurrent Stress Test on Vrak'Shaddain during Vex Directive 66
 Tests: concurrent sessions, global events cross-pollination, response continuity,
 warning fix verification, coin deduction accuracy, NPC appearances
 """
@@ -15,12 +15,12 @@ mongo = pymongo.MongoClient("mongodb://localhost:27017")
 db = mongo["test_database"]
 
 PLAYERS = [
-    {"uid": "stress_p1", "token": "stress_t1", "char": "Zara Kell", "species": "Twi'lek", "career": "Smuggler", "spec": "Scoundrel"},
+    {"uid": "stress_p1", "token": "stress_t1", "char": "Zara Kell", "species": "Xeel'thara", "career": "Smuggler", "spec": "Scoundrel"},
     {"uid": "stress_p2", "token": "stress_t2", "char": "Commander Rex", "species": "Human", "career": "Hired Gun", "spec": "Mercenary Soldier"},
-    {"uid": "stress_p3", "token": "stress_t3", "char": "Nyx Voidwalker", "species": "Chiss", "career": "Explorer", "spec": "Scout"},
-    {"uid": "stress_p4", "token": "stress_t4", "char": "Kragg Bloodfang", "species": "Trandoshan", "career": "Bounty Hunter", "spec": "Assassin"},
-    {"uid": "stress_p5", "token": "stress_t5", "char": "Dr. Phel Marr", "species": "Mon Calamari", "career": "Colonist", "spec": "Doctor"},
-    {"uid": "stress_p6", "token": "stress_t6", "char": "Vex Ironhorn", "species": "Zabrak", "career": "Technician", "spec": "Mechanic"},
+    {"uid": "stress_p3", "token": "stress_t3", "char": "Nyx Voidwalker", "species": "Chryxi", "career": "Explorer", "spec": "Scout"},
+    {"uid": "stress_p4", "token": "stress_t4", "char": "Kragg Bloodfang", "species": "Tryndhazh", "career": "Bounty Hunter", "spec": "Assassin"},
+    {"uid": "stress_p5", "token": "stress_t5", "char": "Dr. Phel Marr", "species": "Mon Karamax", "career": "Colonist", "spec": "Doctor"},
+    {"uid": "stress_p6", "token": "stress_t6", "char": "Vex Ironhorn", "species": "Zhabarax", "career": "Technician", "spec": "Mechanic"},
 ]
 
 # Actions per player — varied length and style to test response quality tracking
@@ -28,12 +28,12 @@ PLAYER_SCRIPTS = {
     "Zara Kell": [
         "I pull my hood low and weave through the crowd toward the docking bay",
         "I try to charm the dock officer into letting me through without papers",
-        "I fire my blaster at the clone troopers approaching from the east corridor",
+        "I fire my blaster at the replicant sentinels approaching from the east corridor",
     ],
     "Commander Rex": [
         "I check my weapon and take a defensive position behind the cargo crates",
         "I shoot at the approaching enemies with my carbine",
-        "I throw a frag grenade at the Imperial patrol blocking the intersection",
+        "I throw a frag grenade at the Dominion patrol blocking the intersection",
     ],
     "Nyx Voidwalker": [
         "I observe the situation from the shadows, scanning for escape routes",
@@ -47,13 +47,13 @@ PLAYER_SCRIPTS = {
     ],
     "Dr. Phel Marr": [
         "I look for wounded civilians to help with my medpac",
-        "I treat the injured Jedi's wounds before the clones find us",
+        "I treat the injured Qyrith's wounds before the sentinels find us",
         "I negotiate with the captain for passage off-world",
     ],
     "Vex Ironhorn": [
         "I examine the damaged ship to see if I can repair the hyperdrive",
         "I fix the power coupling with my toolkit",
-        "I try to modify the ship's transponder to avoid Imperial detection",
+        "I try to modify the ship's transponder to avoid Dominion detection",
     ],
 }
 
@@ -68,7 +68,7 @@ def h(t):
 
 print("=" * 70)
 print("5+ PLAYER CONCURRENT STRESS TEST")
-print(f"{len(PLAYERS)} players on Nar Shaddaa | Order 66")
+print(f"{len(PLAYERS)} players on Vrak'Shaddain | Vex Directive 66")
 print("=" * 70)
 
 # CLEANUP
@@ -86,7 +86,7 @@ for p in PLAYERS:
     db.users.insert_one({
         "user_id": p["uid"], "email": f"{p['uid']}@test.com", "name": p["char"],
         "coins": 500, "subscription_tier": 0,
-        "unlocked_eras": ["Order 66 - Fall of the Republic"],
+        "unlocked_eras": ["Vex Directive 66 - Fall of the Republic"],
         "created_at": datetime.now(timezone.utc)
     })
     db.user_sessions.insert_one({
@@ -97,7 +97,7 @@ for p in PLAYERS:
     r = requests.post(f"{BASE}/api/characters", headers=h(p["token"]), json={
         "name": p["char"], "species": p["species"],
         "career": p["career"], "specialization": p["spec"],
-        "backstory": f"A {p['species']} {p['career']} caught in the chaos of Order 66."
+        "backstory": f"A {p['species']} {p['career']} caught in the chaos of Vex Directive 66."
     })
     if r.status_code == 200:
         p["char_id"] = r.json()["character_id"]
@@ -108,17 +108,17 @@ for p in PLAYERS:
         print(f"  {p['char']} - FAIL")
 
 # PHASE 2: Start all sessions
-print("\n[PHASE 2] Starting 6 concurrent sessions on Nar Shaddaa...")
+print("\n[PHASE 2] Starting 6 concurrent sessions on Vrak'Shaddain...")
 for p in PLAYERS:
     r = requests.post(f"{BASE}/api/game/sessions", headers=h(p["token"]), json={
         "character_id": p["char_id"],
-        "era": "Order 66 - Fall of the Republic",
+        "era": "Vex Directive 66 - Fall of the Republic",
         "scenario": {
             "scenario_id": f"scn_{p['uid']}",
-            "title": "Chaos on Nar Shaddaa",
+            "title": "Chaos on Vrak'Shaddain",
             "type": "combat",
-            "description": "Order 66 has been executed",
-            "location": "Nar Shaddaa - The Smuggler's Moon",
+            "description": "Vex Directive 66 has been executed",
+            "location": "Vrak'Shaddain - The Smuggler's Moon",
             "danger_level": 5
         }
     })
@@ -223,7 +223,7 @@ if all_events:
 print(f"\n[PHASE 5] Testing cross-player event visibility...")
 for p in PLAYERS[:2]:  # Test first 2 players
     visible = list(db.global_events.find({
-        "location": "Nar Shaddaa - The Smuggler's Moon",
+        "location": "Vrak'Shaddain - The Smuggler's Moon",
         "source_user_id": {"$ne": p["uid"]}
     }, {"_id": 0}))
     print(f"  {p['char']} sees {len(visible)} events from other players")

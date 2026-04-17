@@ -1,7 +1,7 @@
-# Star Wars: Edge of the Empire RPG - Product Requirements Document
+# Galactic: Edge of the Dominion RPG - Product Requirements Document
 
 ## Overview
-A text-based role-playing mobile game based on the Star Wars: Edge of the Empire tabletop game system, featuring AI-powered storytelling, authentic dice mechanics, immersive character creation, and dynamic environment theming.
+A text-based role-playing mobile game based on the Galactic: Edge of the Dominion tabletop game system, featuring AI-powered storytelling, authentic dice mechanics, immersive character creation, and dynamic environment theming.
 
 ## Core Features
 
@@ -11,7 +11,7 @@ A text-based role-playing mobile game based on the Star Wars: Edge of the Empire
 - User profile management
 
 ### 2. Character Creation
-- **Species Selection**: Human, Twi'lek, Wookiee, Rodian, Bothan, Droid (with detailed appearance data)
+- **Species Selection**: Human, Xeel'thara, Krrrhash, Qrin'dex, Vhothara, Servitor (with detailed appearance data)
 - **Careers**: Bounty Hunter, Colonist, Explorer, Hired Gun, Smuggler, Technician
 - **Specializations**: 3 per career (18 total)
 - **Stats**: Brawn, Agility, Intellect, Cunning, Willpower, Presence
@@ -25,7 +25,7 @@ Each career provides:
 - **Specialization bonus** (2 items): Additional items specific to the specialization
 - Items have name, category (weapon/armor/gear/tool), and rich descriptions
 
-### 4. Edge of the Empire Dice System
+### 4. Edge of the Dominion Dice System
 Full implementation with:
 - All 7 dice types (Ability, Proficiency, Difficulty, Challenge, Boost, Setback, Force)
 - Symbols: Success, Failure, Advantage, Threat, Triumph, Despair, Light Side, Dark Side
@@ -56,7 +56,7 @@ Full implementation with:
 Each theme includes: primary, accent, background, border, text_glow, and mood descriptor. Themes dynamically shift based on narrative context.
 
 ### 7. Galaxy Map Loading Animation
-- Animated Star Wars galaxy sector grid (6×5)
+- Animated Galactic galaxy sector grid (6×5)
 - Hyperspace route plotting with animated path drawing
 - Scan line effect and pulsing active node
 - Sector coordinate readout
@@ -64,7 +64,7 @@ Each theme includes: primary, accent, background, border, text_glow, and mood de
 
 ### 8. Game Locations
 Featured locations at the galaxy's edge:
-- Nar Shaddaa, Kessel, Ryloth, Ord Mantell, Dathomir, Lothal, Florrum, Takodana, Jakku, Vandor, Bracca, Batuu
+- Vrak'Shaddain, Kzz'el, Xeel'tharia, Ord Mantyll, Dathrym, Lorthal, Floxxum, Tak'odrin, Jhakkar, Vhandir, Bhracca, Bhatuu
 
 ## Tech Stack
 - **Frontend**: Expo React Native (Play Store ready, SDK 54)
@@ -76,7 +76,7 @@ Featured locations at the galaxy's edge:
 v2.0.0
 
 ## Play Store Configuration
-- Package: com.starwars.edgeoftheempire
+- Package: com.ecsquared.beyondthestars
 - Dark theme UI optimized for immersive gaming
 - Portrait orientation
-- Edge-to-edge enabled on Android
+- Edge-to-edge enabled on Anservitor

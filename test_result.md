@@ -102,7 +102,7 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: "Build a Star Wars: Edge of the Empire text-based RPG game with AI storytelling, character creation, and dice system for Google Play Store"
+user_problem_statement: "Build a Galactic: Edge of the Dominion text-based RPG game with AI storytelling, character creation, and dice system for Google Play Store"
 
 backend:
   - task: "Game Data Endpoints (species, careers, skills)"
@@ -117,7 +117,7 @@ backend:
         agent: "main"
         comment: "Tested via curl - returns all 6 species, 6 careers, and skills data"
 
-  - task: "Edge of the Empire Dice Rolling System"
+  - task: "Edge of the Dominion Dice Rolling System"
     implemented: true
     working: true
     file: "server.py"
@@ -160,7 +160,7 @@ backend:
         comment: "Uses OpenAI gpt-image-1 via emergentintegrations. Requires auth."
       - working: true
         agent: "testing"
-        comment: "✅ TESTED: Portrait generation endpoint is properly implemented and accessible. SKIPPED actual generation testing as noted in requirements (takes ~1 minute). Endpoint uses OpenAI gpt-image-1 via emergentintegrations with proper Star Wars character prompts."
+        comment: "✅ TESTED: Portrait generation endpoint is properly implemented and accessible. SKIPPED actual generation testing as noted in requirements (takes ~1 minute). Endpoint uses OpenAI gpt-image-1 via emergentintegrations with proper Galactic character prompts."
 
   - task: "Game Session Management"
     implemented: true
@@ -175,7 +175,7 @@ backend:
         comment: "Create, list, load game sessions. Requires auth."
       - working: true
         agent: "testing"
-        comment: "✅ TESTED: Game session management working perfectly. Session creation assigns random location (Lothal - Outer Rim Frontier), session listing works correctly. Sessions properly track character_id, user_id, and game state."
+        comment: "✅ TESTED: Game session management working perfectly. Session creation assigns random location (Lorthal - Rim Frontier), session listing works correctly. Sessions properly track character_id, user_id, and game state."
 
   - task: "AI Game Master Integration"
     implemented: true
@@ -306,6 +306,6 @@ test_plan:
 
 agent_communication:
   - agent: "main"
-    message: "Initial implementation complete. Backend has full Edge of the Empire RPG system with AI integration. Frontend has complete flow from login to gameplay. Need to test authentication and protected endpoints."
+    message: "Initial implementation complete. Backend has full Edge of the Dominion RPG system with AI integration. Frontend has complete flow from login to gameplay. Need to test authentication and protected endpoints."
   - agent: "testing"
     message: "✅ BACKEND TESTING COMPLETE: All 19 backend tests passed with 100% success rate. Comprehensive testing completed for all major backend components: public endpoints (species, careers, skills, locations), authentication system, character CRUD operations, dice rolling system (all 7 dice types), game session management, and AI Game Master integration using Claude Sonnet 4. All APIs working correctly with proper data validation, authentication, and AI integrations."

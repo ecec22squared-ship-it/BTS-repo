@@ -22,7 +22,7 @@ const COIN_PACKAGES = [
 
 const SUB_TIERS = [
   { id: 's1', tier: 1, name: 'Basic', price: '$2.99/mo', coins: 300, bonus: 0, eras: [], desc: 'Monthly coin supply' },
-  { id: 's2', tier: 2, name: 'Republic', price: '$5.99/mo', coins: 500, bonus: 100, eras: ['Neo-Concordat Era'], desc: 'Witness the Dominion fall' },
+  { id: 's2', tier: 2, name: 'Concordat', price: '$5.99/mo', coins: 500, bonus: 100, eras: ['Neo-Concordat Era'], desc: 'Witness the Dominion fall' },
   { id: 's3', tier: 3, name: 'Vrakxul', price: '$9.99/mo', coins: 800, bonus: 200, eras: ['Neo-Concordat Era', 'Vrakxul Era'], desc: "Face Dark Lord Kr'vex" },
   { id: 's4', tier: 4, name: 'Vorthak', price: '$14.99/mo', coins: 1200, bonus: 400, eras: ['Neo-Concordat Era', 'Vrakxul Era', 'Vorthak Era'], desc: 'All eras unlocked', best: true },
 ];

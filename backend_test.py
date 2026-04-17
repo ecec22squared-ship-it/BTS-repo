@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Star Wars: Edge of the Empire RPG Backend API Test Suite
+Galactic: Edge of the Dominion RPG Backend API Test Suite
 Tests all backend endpoints including authentication, character management, dice rolling, and game sessions.
 """
 
@@ -145,11 +145,11 @@ class BackendTester:
         # Test character creation
         try:
             character_data = {
-                "name": "Han Solo",
+                "name": "Ryn Korveth",
                 "species": "Human",
                 "career": "Smuggler",
                 "specialization": "Scoundrel",
-                "backstory": "A smuggler from Corellia seeking fortune in the Outer Rim"
+                "backstory": "A smuggler from Korveth seeking fortune in the The Rim"
             }
             
             response = await self.client.post(
@@ -384,7 +384,7 @@ class BackendTester:
 
     async def run_all_tests(self):
         """Run all backend tests"""
-        print("🚀 Starting Star Wars: Edge of the Empire Backend API Tests")
+        print("🚀 Starting Galactic: Edge of the Dominion Backend API Tests")
         print(f"Backend URL: {BACKEND_URL}")
         print(f"MongoDB: {MONGO_URL}/{DB_NAME}")
         

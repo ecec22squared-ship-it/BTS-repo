@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Dynamic playthrough test - Trandoshan Smuggler in Mandalorian Era"""
+"""Dynamic playthrough test - Tryndhazh Smuggler in Vorthak Era"""
 import requests
 import json
 import time
@@ -42,7 +42,7 @@ coin_balance = 500
 
 print("=" * 60)
 print("DYNAMIC PLAYTHROUGH TEST")
-print("Trandoshan Smuggler | Mandalorian Era")
+print("Tryndhazh Smuggler | Vorthak Era")
 print("=" * 60)
 
 # Step 1: Verify user
@@ -58,13 +58,13 @@ else:
     print(f"  FAIL - {r.status_code}")
 
 # Step 2: Create character
-print("\n[2] Creating Trandoshan Smuggler/Pilot...")
+print("\n[2] Creating Tryndhazh Smuggler/Pilot...")
 r = requests.post(f"{BASE}/api/characters", headers=HEADERS, json={
     "name": "Krassk Vao",
-    "species": "Trandoshan",
+    "species": "Tryndhazh",
     "career": "Smuggler",
     "specialization": "Pilot",
-    "backstory": "A grizzled Trandoshan pilot smuggling weapons for credits."
+    "backstory": "A grizzled Tryndhazh pilot smuggling weapons for credits."
 })
 if r.status_code == 200:
     char = r.json()
@@ -78,17 +78,17 @@ else:
     print(f"  FAIL - {r.status_code}")
     sys.exit(1)
 
-# Step 3: Create session with Mandalorian Era
-print("\n[3] Creating Mandalorian Era session...")
+# Step 3: Create session with Vorthak Era
+print("\n[3] Creating Vorthak Era session...")
 r = requests.post(f"{BASE}/api/game/sessions", headers=HEADERS, json={
     "character_id": char_id,
-    "era": "Mandalorian Era",
+    "era": "Vorthak Era",
     "scenario": {
         "scenario_id": "scn_mando_test",
-        "title": "Smuggler's Run on Ord Mantell",
+        "title": "Smuggler's Run on Ord Mantyll",
         "type": "intrigue",
-        "description": "Weapons smuggling during the Mandalorian Wars",
-        "location": "Ord Mantell - Scrapyard Planet",
+        "description": "Weapons smuggling during the Vorthak Wars",
+        "location": "Ord Mantyll - Scrapyard Planet",
         "danger_level": 3
     }
 })
@@ -99,9 +99,9 @@ if r.status_code == 200:
     print(f"  Location: {session['current_location']}")
     print(f"  Era: {session['era']}")
     print(f"  Env: {session['environment_type']}")
-    successes.append("Session creation with Mandalorian Era")
-    if session['era'] != 'Mandalorian Era':
-        errors.append(f"Era mismatch: expected 'Mandalorian Era', got '{session['era']}'")
+    successes.append("Session creation with Vorthak Era")
+    if session['era'] != 'Vorthak Era':
+        errors.append(f"Era mismatch: expected 'Vorthak Era', got '{session['era']}'")
 else:
     errors.append(f"Session creation failed: {r.status_code}")
     print(f"  FAIL - {r.status_code}")

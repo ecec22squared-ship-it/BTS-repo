@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Cross-Player Global Events Test
-Creates 3 players on Nar Shaddaa during Order 66.
+Creates 3 players on Vrak'Shaddain during Vex Directive 66.
 Player A causes an explosion → Player B should see/hear it.
 Player B causes an arrest → Player C should reference it.
 Player C encounters Player A's character as an NPC.
@@ -23,30 +23,30 @@ PLAYERS = [
         "user_id": "cross_player_a",
         "token": "cross_token_a",
         "char_name": "Vex Torr",
-        "species": "Twi'lek",
+        "species": "Xeel'thara",
         "career": "Smuggler",
         "spec": "Scoundrel",
-        "backstory": "A charming Twi'lek scoundrel running weapons through Nar Shaddaa's underworld."
+        "backstory": "A charming Xeel'thara scoundrel running weapons through Vrak'Shaddain's underworld."
     },
     {
         "name": "Player_B_Kyra",
         "user_id": "cross_player_b",
         "token": "cross_token_b",
         "char_name": "Kyra Frost",
-        "species": "Chiss",
+        "species": "Chryxi",
         "career": "Explorer",
         "spec": "Scout",
-        "backstory": "A Chiss intelligence operative mapping the Smuggler's Moon for her own purposes."
+        "backstory": "A Chryxi intelligence operative mapping the Smuggler's Moon for her own purposes."
     },
     {
         "name": "Player_C_Grunt",
         "user_id": "cross_player_c",
         "token": "cross_token_c",
         "char_name": "Grukk",
-        "species": "Trandoshan",
+        "species": "Tryndhazh",
         "career": "Bounty Hunter",
         "spec": "Survivalist",
-        "backstory": "A Trandoshan hunter tracking prey across the neon-lit streets of Nar Shaddaa."
+        "backstory": "A Tryndhazh hunter tracking prey across the neon-lit streets of Vrak'Shaddain."
     },
 ]
 
@@ -58,7 +58,7 @@ def h(token):
 
 print("=" * 70)
 print("CROSS-PLAYER GLOBAL EVENTS TEST")
-print("3 Players on Nar Shaddaa - The Smuggler's Moon | Order 66")
+print("3 Players on Vrak'Shaddain - The Smuggler's Moon | Vex Directive 66")
 print("=" * 70)
 
 # ============================================================================
@@ -84,7 +84,7 @@ for p in PLAYERS:
     db.users.insert_one({
         "user_id": p["user_id"], "email": f"{p['user_id']}@test.com",
         "name": p["name"], "coins": 500, "subscription_tier": 0,
-        "unlocked_eras": ["Order 66 - Fall of the Republic"],
+        "unlocked_eras": ["Vex Directive 66 - Fall of the Republic"],
         "created_at": datetime.now(timezone.utc)
     })
     db.user_sessions.insert_one({
@@ -108,20 +108,20 @@ for p in PLAYERS:
         print(f"  FAIL creating {p['char_name']}: {r.status_code}")
 
 # ============================================================================
-# PHASE 2: All 3 players start sessions on Nar Shaddaa
+# PHASE 2: All 3 players start sessions on Vrak'Shaddain
 # ============================================================================
-print("\n[PHASE 2] Starting 3 sessions on Nar Shaddaa...")
+print("\n[PHASE 2] Starting 3 sessions on Vrak'Shaddain...")
 
 for p in PLAYERS:
     r = requests.post(f"{BASE}/api/game/sessions", headers=h(p["token"]), json={
         "character_id": p["char_id"],
-        "era": "Order 66 - Fall of the Republic",
+        "era": "Vex Directive 66 - Fall of the Republic",
         "scenario": {
             "scenario_id": f"scn_{p['user_id']}",
-            "title": f"Chaos on Nar Shaddaa",
+            "title": f"Chaos on Vrak'Shaddain",
             "type": "intrigue",
-            "description": "The galaxy burns as Order 66 reshapes everything",
-            "location": "Nar Shaddaa - The Smuggler's Moon",
+            "description": "The galaxy burns as Vex Directive 66 reshapes everything",
+            "location": "Vrak'Shaddain - The Smuggler's Moon",
             "danger_level": 4
         }
     })
@@ -152,7 +152,7 @@ print("\n[PHASE 3] Player A (Vex Torr) causes an explosion...")
 r = requests.post(
     f"{BASE}/api/game/sessions/{PLAYERS[0]['session_id']}/action",
     headers=h(PLAYERS[0]["token"]),
-    json={"action": "I throw a thermal detonator at the Imperial patrol, causing a massive explosion that rocks the entire landing platform", "force_action": True},
+    json={"action": "I throw a thermal detonator at the Dominion patrol, causing a massive explosion that rocks the entire landing platform", "force_action": True},
     timeout=60
 )
 if r.status_code == 200:
@@ -186,7 +186,7 @@ print("\n[PHASE 4] Player B (Kyra Frost) acts — should see evidence of explosi
 r = requests.post(
     f"{BASE}/api/game/sessions/{PLAYERS[1]['session_id']}/action",
     headers=h(PLAYERS[1]["token"]),
-    json={"action": "I look around and observe what's happening on the streets of Nar Shaddaa", "force_action": True},
+    json={"action": "I look around and observe what's happening on the streets of Vrak'Shaddain", "force_action": True},
     timeout=60
 )
 if r.status_code == 200:
@@ -199,8 +199,8 @@ if r.status_code == 200:
     cross_references = []
     if any(w in lower_gm for w in ["explosion", "blast", "detonat", "smoke", "fire", "burning"]):
         cross_references.append("explosion referenced")
-    if any(w in lower_gm for w in ["twi'lek", "twilek", "lekku"]):
-        cross_references.append("Twi'lek (Player A species) mentioned")
+    if any(w in lower_gm for w in ["xeel'thara", "twilek", "lekkra"]):
+        cross_references.append("Xeel'thara (Player A species) mentioned")
     if any(w in lower_gm for w in ["smuggler", "scoundrel"]):
         cross_references.append("smuggler/scoundrel mentioned")
     
@@ -262,10 +262,10 @@ if r.status_code == 200:
         cross_refs.append("explosion (from Player A)")
     if any(w in lower_gm for w in ["arrest", "custody", "detained", "authorities", "security"]):
         cross_refs.append("arrest (from Player B)")
-    if any(w in lower_gm for w in ["twi'lek", "twilek"]):
-        cross_refs.append("Twi'lek character glimpse")
+    if any(w in lower_gm for w in ["xeel'thara", "twilek"]):
+        cross_refs.append("Xeel'thara character glimpse")
     if any(w in lower_gm for w in ["chiss", "blue-skin", "blue skin"]):
-        cross_refs.append("Chiss character glimpse")
+        cross_refs.append("Chryxi character glimpse")
     
     if cross_refs:
         print(f"  CROSS-PLAYER REFERENCES FOUND: {', '.join(cross_refs)}")
@@ -294,10 +294,10 @@ if r.status_code == 200:
     
     lower_gm = gm.lower()
     npc_refs = []
-    if any(w in lower_gm for w in ["twi'lek", "twilek", "lekku", "head-tail"]):
-        npc_refs.append("Twi'lek NPC (Player A's species)")
+    if any(w in lower_gm for w in ["xeel'thara", "twilek", "lekkra", "head-tail"]):
+        npc_refs.append("Xeel'thara NPC (Player A's species)")
     if any(w in lower_gm for w in ["chiss", "blue-skin", "blue skin", "red eyes", "red-eyed"]):
-        npc_refs.append("Chiss NPC (Player B's species)")
+        npc_refs.append("Chryxi NPC (Player B's species)")
     if any(w in lower_gm for w in ["smuggler", "scoundrel"]):
         npc_refs.append("Smuggler NPC (Player A's career)")
     if any(w in lower_gm for w in ["scout", "explorer", "operative"]):
@@ -330,7 +330,7 @@ else:
 
 # Verify events are filtered by user (player shouldn't see own events)
 events_for_c = list(db.global_events.find({
-    "location": "Nar Shaddaa - The Smuggler's Moon",
+    "location": "Vrak'Shaddain - The Smuggler's Moon",
     "source_user_id": {"$ne": PLAYERS[2]["user_id"]}
 }, {"_id": 0}))
 print(f"  Events visible to Player C (excluding own): {len(events_for_c)}")
