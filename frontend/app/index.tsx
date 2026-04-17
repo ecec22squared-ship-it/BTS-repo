@@ -123,6 +123,14 @@ export default function Index() {
       <SafeAreaView style={styles.container}>
         <StatusBar style="light" />
         <ScrollView contentContainerStyle={styles.scrollContent}>
+          {/* IP Disclaimer - shown prominently at the top */}
+          <View style={styles.ipDisclaimerBanner}>
+            <Ionicons name="warning-outline" size={14} color="#FF3EC8" />
+            <Text style={styles.ipDisclaimerText}>
+              This Game is not Endorsed, Supported, or Affiliated with Star Wars or any associated company.
+            </Text>
+          </View>
+
           <View style={styles.loginContainer}>
             {/* Logo/Title */}
             <View style={styles.logoContainer}>
@@ -326,6 +334,28 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     padding: 20,
+  },
+  ipDisclaimerBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginTop: -10,
+    marginBottom: 10,
+    backgroundColor: 'rgba(255,62,200,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,62,200,0.4)',
+    borderRadius: 6,
+  },
+  ipDisclaimerText: {
+    color: '#FF3EC8',
+    fontSize: 10,
+    fontWeight: '600',
+    flex: 1,
+    textAlign: 'center',
+    lineHeight: 14,
   },
   loadingContainer: {
     flex: 1,
