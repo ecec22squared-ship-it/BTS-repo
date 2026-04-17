@@ -5,14 +5,18 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "edgeoftheempire",
+    "scheme": "beyondthestars",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
+    "description": "Live your adventure. An AI Game Master narrates your personal galactic RPG saga, powered by the Edge-of-the-Empire dice engine and a procedural immersion environment.",
+    "primaryColor": "#FFD700",
+    "owner": "ecsquared",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.starwars.edgeoftheempire",
+      "bundleIdentifier": "com.ecsquared.beyondthestars",
+      "buildNumber": "1",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "Voice input for game commands"
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -21,7 +25,8 @@
         "backgroundColor": "#0a0a0f"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.starwars.edgeoftheempire",
+      "package": "com.ecsquared.beyondthestars",
+      "versionCode": 1,
       "permissions": [
         "INTERNET",
         "ACCESS_NETWORK_STATE"
@@ -49,8 +54,11 @@
     },
     "extra": {
       "eas": {
-        "projectId": "edge-of-the-empire-rpg"
-      }
+        "projectId": "beyond-the-stars-rpg"
+      },
+      "publisher": "EC\u00b2",
+      "supportEmail": "universal4050@gmail.com",
+      "supportUrl": "https://discord.gg/cmV4PMvW2"
     }
   }
 }
