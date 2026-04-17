@@ -4,22 +4,31 @@ Both stores **require** that you provide a working demo account whenever the app
 
 ---
 
-## Option A (Recommended) — Dedicated Reviewer Google Account
+## ✅ Auto-Seed Configured
 
-1. Create a new Gmail account, e.g. `bts.reviewer+ec2@gmail.com`.
-2. Add a strong password. Store it in a password manager.
-3. **Sign into the app once** with this account on a test device to complete the Google OAuth flow.
-4. Use the backend seed endpoint below to pre-populate the account with:
-   - 1 completed character across 2 bio-lab stages
-   - 500 coins (default)
-   - 1 active game session already at scene 2 (so reviewers can read a scene immediately instead of waiting for generation)
+The backend watches for sign-ins from **`ecec22squared@gmail.com`** and, on every sign-in, automatically:
+
+- Creates (or refreshes) a character: **Kyrix Vhandir** — Xeel'thara, Smuggler, Pilot specialization
+- Resets coin balance to **500**
+- Ensures an in-progress game session exists, set in **"Vrak'Shaddain — Docking Bay 94"** with an opening scene already written
+
+So the reviewer taps "Continue Adventure" and sees a full scene in under 3 seconds — zero generation wait, zero LLM budget burned on first review pass.
+
+---
+
+## Option A (Recommended) — Use the pre-configured reviewer email
+
+1. **Gmail account:** `ecec22squared@gmail.com`
+2. Set a strong password on the account, store it in a password manager.
+3. **Sign into the app once** with this account on a real device (or the web preview) to complete the Google OAuth flow. The backend auto-seeds on first sign-in — no manual step needed.
+4. If the seed ever needs to re-run (after changing lore, content updates, etc.) — while signed in as the reviewer account, call `POST /api/dev/seed-reviewer`. It's idempotent.
 5. Provide the credentials in App Store Connect / Play Console:
 
 ### Apple App Store Connect → App Review Information
 ```
 Sign-in required: Yes
-Username: bts.reviewer+ec2@gmail.com
-Password: [strong-password-here]
+Username: ecec22squared@gmail.com
+Password: [your-strong-password]
 Contact first name: EC2
 Contact last name: Gaming
 Contact phone: +1 [your number]
@@ -27,57 +36,62 @@ Contact email: universal4050@gmail.com
 
 Review notes:
   Beyond the Stars uses Google Sign-In for authentication. Please use the
-  credentials above to sign in. After signing in, the main menu offers a
-  pre-populated character and an in-progress game session labeled 'Reviewer
-  Sandbox' which will load in under 3 seconds. Tap 'Continue Adventure'
-  to read the current scene and tap 'Send' on any short response to see
-  the AI Game Master generate the next scene. A magenta IP disclaimer
-  at the top of the login screen states that this app is not endorsed,
-  supported, or affiliated with Star Wars or any associated company.
-  All in-app content uses original species/faction names.
+  credentials above. The account is pre-seeded with a character ("Kyrix
+  Vhandir") and an in-progress adventure set in Docking Bay 94 on
+  Vrak'Shaddain — tap "Continue Adventure" on the main menu to read the
+  opening scene immediately, no wait.
+
+  A magenta disclaimer at the top of the login screen states this app is
+  not endorsed, supported, or affiliated with Star Wars or any associated
+  company. All in-app content uses original species/faction names (e.g.
+  Xeel'thara, Krrrhash, Qyrith, Vrakxul) — no Disney/Lucasfilm IP is used
+  or claimed.
+
+  In-app purchases use Stripe (not Apple IAP) for account-based digital
+  goods under the External Link Account Entitlement. No purchase is
+  required for review; reviewers may tap any subscription card to view
+  the Stripe checkout flow.
 ```
 
 ### Google Play Console → App content → App access
 ```
 All or some functionality is restricted: Yes
 Instructions:
-  - Tap 'Sign in with Google' and use: bts.reviewer+ec2@gmail.com / [pw]
-  - Main menu will show 'Continue Adventure' with a pre-loaded session
-  - Tap any character card to see character details
-  - 'Swipe right' gesture on the main menu opens the Social Media screen
-  - 'Galactic Banking Clan' (store) is accessible via the main menu
-
-In-app purchases are processed via Stripe (not Play Billing). Reviewers
-can tap the subscription cards to see the Stripe checkout page; no
-purchase is required for review.
+  Sign-in: ecec22squared@gmail.com / [your-password]
+  - Main menu shows "Continue Adventure" with a pre-loaded session.
+  - Tap the character card to see details of Kyrix Vhandir.
+  - Swipe right on the main menu to open the Holo-Comm (Social) screen.
+  - "Galactic Banking Clan" (the in-app store) is accessible from the main menu.
+  - First sign-in automatically seeds the account — no setup required.
+  - No in-app purchase is required to test any feature.
 ```
 
 ---
 
 ## Option B — Request Sign-in Exemption (not recommended)
 
-You can ask Apple/Google to skip sign-in entirely by adding a "Guest mode" that offers a limited playable experience with no auth. This is more work and generally not needed since Option A is accepted.
+You can ask Apple/Google to skip sign-in entirely by adding a "Guest mode." More work, not needed since Option A is always accepted.
 
 ---
 
-## Seed the Reviewer Account (run this against production API after the reviewer signs in once)
-
-TODO — I can add a `/api/dev/seed-reviewer` endpoint on request. It would:
-- Accept a bearer token from the reviewer account
-- Create 1 character (name: 'Kyrix Vhandir', Xeel'thara, Smuggler / Pilot)
-- Create 1 active game session with era 'Vex Directive 66' and scene #2 already generated
-- Ensure coin balance is 500
-- Return HTTP 200 on success, idempotent if called again
-
-Just say "add the reviewer seed endpoint" and I'll ship it.
-
----
-
-## Important notes for reviewers (include in review notes)
+## Important notes to include in review notes
 
 - The app displays a **magenta IP disclaimer** on the login page stating it is not endorsed by or affiliated with Star Wars.
-- **No offensive content** is possible: the AI Game Master is prompt-guided to stay within PG-13 bounds, and a content filter rejects explicit input.
-- **In-app purchases** go through Stripe (not Apple/Google Billing) — this is allowed on iOS for subscriptions as long as the app also offers account management and doesn't steer users away from IAP. Our app only uses Stripe for coin packs and era subscriptions; no physical goods. Apple has approved this pattern under the "Reader / External Link Entitlement" for apps offering account-based digital goods. If Apple asks, reference their own documentation on `External Link Account Entitlement`.
-  - If Apple rejects for IAP-steering, the quickest fix is to add Apple In-App Purchase products that mirror the Stripe ones. I can wire this up when you're ready.
+- **No offensive content** is possible: the AI Game Master is prompt-guided to stay within PG-13 bounds.
+- **In-app purchases** use **Stripe** (not Apple IAP) under Apple's External Link Account Entitlement for account-based digital goods.
+  - If Apple rejects for IAP-steering, the quickest fix is to add Apple In-App Purchase products that mirror the Stripe SKUs. Ask the developer agent to "add Apple IAP products" when needed.
 - **Google Sign-In on iOS:** uses Apple's `ASWebAuthenticationSession`; reviewers must complete 2FA on the reviewer account the first time.
-- **LLM budget:** the AI Game Master runs on an Emergent LLM key. If the budget is exhausted the app shows a graceful "budget exhausted" banner inside the chat; this is expected and not a crash. Reviewers can still click buttons and navigate — only new story generation pauses.
+- **LLM budget:** the AI Game Master runs on a metered LLM key. If the budget is exhausted the app shows a graceful "budget exhausted" banner inside the chat; this is expected and not a crash. Reviewers can still click buttons and navigate — only new story generation pauses.
+
+---
+
+## Backend implementation reference
+
+The auto-seed logic lives in `/app/backend/server.py`:
+
+- Constant `REVIEWER_EMAIL = "ecec22squared@gmail.com"`
+- Function `async def seed_reviewer_account(user_id: str)`
+- Hook inside `POST /api/auth/session` — runs after user identification
+- Manual re-seed endpoint: `POST /api/dev/seed-reviewer` (requires reviewer auth)
+
+To change the reviewer email, edit `REVIEWER_EMAIL` in `server.py` and restart backend.

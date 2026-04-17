@@ -298,6 +298,21 @@ metadata:
   test_sequence: 2
   run_ui: false
 
+  - task: "Reviewer Seed Endpoint (POST /api/dev/seed-reviewer)"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added REVIEWER_EMAIL constant, seed_reviewer_account() helper, POST /api/dev/seed-reviewer endpoint, and hook inside POST /api/auth/session. Needs verification of auth gating and idempotency."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED (narrow scope, 18/18 assertions passed via /app/backend_test.py): (1) POST /api/dev/seed-reviewer with no auth -> 401 Not authenticated. (2) With a non-reviewer authenticated user (seeded into Mongo with random email + bearer token) -> 403 'Reviewer account only'. (3) With reviewer user (email=ecec22squared@gmail.com) -> 200 {'status':'ok','message':'Reviewer account seeded'}. (4) After first call, DB has exactly 1 character (name=Kyrix Vhandir, species=Xeel'thara, career=Smuggler, specialization=Pilot) and exactly 1 game session (location=Vrak'Shaddain - Docking Bay 94, era=Vex Directive 66 - Fall of the Concordat, one seeded assistant message in game_history). User doc reset to coins=500, subscription_tier=0, unlocked_eras=['Vex Directive 66 - Fall of the Concordat'] even when those were mutated beforehand. (5) Idempotency confirmed: after calling the endpoint 3 total times, character count stays at 1 and session count stays at 1, with the same character_id and session_id reused — no duplicates created."
+
 test_plan:
   current_focus: []
   stuck_tasks: []
@@ -309,3 +324,5 @@ agent_communication:
     message: "Initial implementation complete. Backend has full Edge of the Dominion RPG system with AI integration. Frontend has complete flow from login to gameplay. Need to test authentication and protected endpoints."
   - agent: "testing"
     message: "✅ BACKEND TESTING COMPLETE: All 19 backend tests passed with 100% success rate. Comprehensive testing completed for all major backend components: public endpoints (species, careers, skills, locations), authentication system, character CRUD operations, dice rolling system (all 7 dice types), game session management, and AI Game Master integration using Claude Sonnet 4. All APIs working correctly with proper data validation, authentication, and AI integrations."
+  - agent: "testing"
+    message: "✅ REVIEWER-SEED LOGIC VERIFIED: Ran narrow-scope tests against the new reviewer-seed code in /app/backend/server.py. All 18 assertions passed in /app/backend_test.py. Auth gating works correctly (401 unauth, 403 non-reviewer, 200 reviewer). seed_reviewer_account() is fully idempotent — repeated calls do not duplicate the Character or GameSession doc, coins/subscription_tier/unlocked_eras are reset on every call, and the seeded character + session contain the exact expected fields (Kyrix Vhandir / Xeel'thara / Smuggler / Pilot, location Vrak'Shaddain - Docking Bay 94, era Vex Directive 66 - Fall of the Concordat, one seeded assistant message). server.py and .env were NOT modified. No issues to report."

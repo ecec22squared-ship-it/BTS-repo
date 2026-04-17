@@ -1285,6 +1285,130 @@ async def get_current_user(request: Request) -> Optional[UserBase]:
         return None
     return UserBase(**user_doc)
 
+# -------- Reviewer auto-seed (for App Store / Play Store review) ------------
+
+REVIEWER_EMAIL = "ecec22squared@gmail.com"
+
+
+async def seed_reviewer_account(user_id: str):
+    """Idempotent seed for app-store reviewers.
+    Gives the reviewer: 500 coins, 1 character, 1 in-progress game session labeled
+    'Reviewer Sandbox' so the reviewer sees a ready-to-play app on first launch.
+    """
+    # Ensure coin balance is at least 500 (reset in case a previous test drained them)
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {
+            "coins": 500,
+            "subscription_tier": 0,
+            "unlocked_eras": ["Vex Directive 66 - Fall of the Concordat"],
+        }}
+    )
+
+    # Ensure character exists
+    existing_char = await db.characters.find_one({"user_id": user_id})
+    if existing_char:
+        char_id = existing_char["character_id"]
+    else:
+        char_id = f"char_{uuid.uuid4().hex[:12]}"
+        character_doc = {
+            "character_id": char_id,
+            "user_id": user_id,
+            "name": "Kyrix Vhandir",
+            "species": "Xeel'thara",
+            "career": "Smuggler",
+            "specialization": "Pilot",
+            "backstory": (
+                "A Xeel'thara pilot whose family was lost when the Dominion purged their "
+                "home world of Xeel'tharia. Kyrix now works the outer spaceports of "
+                "Vrak'Shaddain, running contraband and nursing an old grudge against "
+                "the Regent's sentinels. Reviewer-preloaded character."
+            ),
+            "stats": {
+                "brawn": 2, "agility": 3, "intellect": 2,
+                "cunning": 3, "willpower": 2, "presence": 2,
+            },
+            "skills": [
+                {"name": "Piloting (Space)", "rank": 2},
+                {"name": "Gunnery",          "rank": 1},
+                {"name": "Streetwise",       "rank": 2},
+                {"name": "Deception",        "rank": 1},
+            ],
+            "health": {"wounds": 0, "wound_threshold": 12, "strain": 0, "strain_threshold": 11},
+            "experience": {"total": 0, "spent": 0, "available": 0},
+            "equipment": ["Heavy Blaster Pistol", "Flight Suit", "Comlink", "Utility Belt"],
+            "credits": 1000,
+            "portrait_base64": None,
+            "created_at": datetime.now(timezone.utc),
+        }
+        await db.characters.insert_one(character_doc)
+
+    # Ensure an in-progress game session exists
+    existing_session = await db.game_sessions.find_one({"user_id": user_id, "character_id": char_id})
+    if not existing_session:
+        session_doc = {
+            "session_id": f"game_{uuid.uuid4().hex[:12]}",
+            "user_id": user_id,
+            "character_id": char_id,
+            "scenario_id": None,
+            "story_context": [],
+            "current_location": "Vrak'Shaddain - Docking Bay 94",
+            "environment_type": "urban",
+            "era": "Vex Directive 66 - Fall of the Concordat",
+            "scene_image_base64": None,
+            "npcs": [{
+                "name": "Mazhara",
+                "description": "A weathered castle-keeper who brokers safe passage off-world.",
+                "disposition": "wary but fair",
+            }],
+            "combat_state": {"in_combat": False, "enemies": [], "initiative_order": [], "current_turn": 0},
+            "game_history": [
+                {
+                    "role": "assistant",
+                    "content": (
+                        "The smell of scorched oil hangs heavy over Docking Bay 94. Somewhere in the "
+                        "levels above, a Dominion patrol is moving in slow sweeps — the red glow of "
+                        "their lamps cutting through the ventilator fog. Your Z-75 freighter is "
+                        "crouched on the pad like a wounded insect, port hatch hissing open. Mazhara "
+                        "leans in the shadow beneath the ramp, gold tooth catching the light of a "
+                        "failing street-lumen.\n\n"
+                        "\"You running, or are you staying to argue with them?\" she asks. \"Decide "
+                        "fast, Vhandir. The Regent's sentinels don't take bribes this cycle.\""
+                    ),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                },
+            ],
+            "story_journal": {
+                "npcs_met": [{"name": "Mazhara", "description": "Castle-keeper at Docking Bay 94", "disposition": "wary but fair"}],
+                "locations_visited": ["Vrak'Shaddain - Docking Bay 94"],
+                "major_events": ["Dominion patrol closing on your position."],
+                "unresolved_threads": ["Is the freighter space-worthy? Can you lift off before the patrol arrives?"],
+                "player_reputation": "unknown smuggler",
+                "summary": "Reviewer sandbox session. Kyrix Vhandir is cornered in Docking Bay 94 during a Dominion sweep. Tap 'Send' with any response to continue the story.",
+            },
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
+            "is_reviewer_sandbox": True,
+        }
+        await db.game_sessions.insert_one(session_doc)
+
+
+@api_router.post("/dev/seed-reviewer")
+async def seed_reviewer_endpoint(request: Request):
+    """Manual seed endpoint. Requires the authenticated user to be the reviewer account."""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    # Only the configured reviewer email may call this
+    user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
+    if not user_doc or user_doc.get("email", "").lower() != REVIEWER_EMAIL:
+        raise HTTPException(status_code=403, detail="Reviewer account only")
+    await seed_reviewer_account(user.user_id)
+    return {"status": "ok", "message": "Reviewer account seeded"}
+
+
+# -----------------------------------------------------------------------------
+
 @api_router.post("/auth/session")
 async def create_session(request: Request, response: Response):
     body = await request.json()
@@ -1305,7 +1429,15 @@ async def create_session(request: Request, response: Response):
         await db.users.update_one({"user_id": user_id}, {"$set": {"name": user_data["name"], "picture": user_data.get("picture")}})
     else:
         user_id = f"user_{uuid.uuid4().hex[:12]}"
-        await db.users.insert_one({"user_id": user_id, "email": user_data["email"], "name": user_data["name"], "picture": user_data.get("picture"), "coins": 500, "subscription_tier": 0, "unlocked_eras": ["Vex Directive 66 - Fall of the Republic"], "created_at": datetime.now(timezone.utc)})
+        await db.users.insert_one({"user_id": user_id, "email": user_data["email"], "name": user_data["name"], "picture": user_data.get("picture"), "coins": 500, "subscription_tier": 0, "unlocked_eras": ["Vex Directive 66 - Fall of the Concordat"], "created_at": datetime.now(timezone.utc)})
+
+    # --- Reviewer auto-seed: app store reviewer account gets a ready-to-play state ---
+    if user_data["email"].lower() == REVIEWER_EMAIL:
+        try:
+            await seed_reviewer_account(user_id)
+        except Exception as e:
+            logging.warning(f"Reviewer seed failed (non-fatal): {e}")
+
     session_token = user_data.get("session_token", f"sess_{uuid.uuid4().hex}")
     expires_at = datetime.now(timezone.utc) + timedelta(days=7)
     await db.user_sessions.delete_many({"user_id": user_id})
