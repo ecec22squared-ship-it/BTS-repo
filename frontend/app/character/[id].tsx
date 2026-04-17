@@ -89,7 +89,7 @@ export default function CharacterDetail() {
 
   const handleStartGame = async () => {
     if (!character) return;
-    // Route to era selection (which auto-skips to scenarios if only Order 66 available)
+    // Route to era selection (which auto-skips to scenarios if only Vex Directive 66 available)
     router.push(`/game/eras?characterId=${character.character_id}`);
   };
 

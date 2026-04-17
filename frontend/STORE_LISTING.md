@@ -31,9 +31,9 @@ Board your ship. Roll your dice. The galaxy answers back in real time. An AI Gam
 Beyond the Stars is a next-generation text role-playing game where an AI Game Master narrates your personal galactic saga. No two stories are alike. No pre-written path. Your character, your choices, your legend — unfolding scene by scene through rich immersive text, adaptive music, and cinematic visuals.
 
 🧬 FORGE YOUR HERO
-Step through a five-stage Kaminoan-style genetics facility and build a character from the ground up:
+Step through a five-stage Kyrmirr-style genetics facility and build a character from the ground up:
   • 10+ species, each with unique abilities and starting skills
-  • Careers from smugglers and bounty hunters to force-sensitive mystics and tech aces
+  • Careers from smugglers and bounty hunters to resonance-sensitive mystics and tech aces
   • Specializations that shape how the galaxy reacts to you
   • Write your own backstory — the AI weaves it into the plot
 
@@ -47,7 +47,7 @@ Every action is resolved with an authentic narrative dice pool. Successes, advan
   • Character portraits and scene illustrations generated on demand
 
 🗓️ ERAS OF WAR & LEGACY
-Play across seven canonical eras — from the Clone Wars and Order 66 to the rise of the New Republic, the Sith Revenge, and the Mandalorian frontier. Each era rewrites the factions, NPCs, and politics around you.
+Play across seven canonical eras — from the Replicant Wars and Vex Directive 66 to the rise of the Neo-Concordat, the Vrakxul Revenge, and the Vorthak frontier. Each era rewrites the factions, NPCs, and politics around you.
 
 🌐 A GALAXY THAT REMEMBERS
 Global Events track major decisions across all travelers. Chase the same bounty as another player, liberate the same colony, or stumble onto the aftermath of someone else's firefight. Your stories overlap.
@@ -79,7 +79,7 @@ Beyond the Stars is a work of fiction for entertainment and amusement only. Not 
 
 ```
 🚀 Launch release of Beyond the Stars!
-• Full Kaminoan-style character creation across 5 bio-lab stages
+• Full Kyrmirr-style character creation across 5 bio-lab stages
 • Seven playable eras with era-locked storylines
 • AI Game Master powered by Claude Sonnet
 • Procedural ambient audio engine

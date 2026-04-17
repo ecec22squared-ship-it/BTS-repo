@@ -18,21 +18,21 @@
 - [x] `app.json` — Bundle ID `com.ecsquared.beyondthestars`, version 1.0.0, build 1
 - [x] `eas.json` — EAS Build profiles (preview + production) ready
 - [ ] Replace `assets/images/icon.png` with the **1024×1024** galaxy icon (see `scripts/generate_icon.py`)
-- [ ] Replace `assets/images/adaptive-icon.png` with the Android adaptive foreground
+- [ ] Replace `assets/images/adaptive-icon.png` with the Anservitor adaptive foreground
 - [ ] Replace `assets/images/splash-image.png` with the launch splash
 
 ## 📸 Screenshots (collect 8 per store size)
 **Required sizes:**
 - iOS: 6.7" iPhone (1290 × 2796) — minimum
 - iOS: 6.5" iPhone (1242 × 2688) — optional
-- Android: 16:9 phone (1080 × 1920+) — 2 minimum, 8 max
+- Anservitor: 16:9 phone (1080 × 1920+) — 2 minimum, 8 max
 
 Use the 8 screenshots in `/app/frontend/store_assets/screenshots/` as source.
 
 ## ⚠️ Intellectual-Property Risk — READ BEFORE SUBMITTING
 
 The current in-app content contains **direct references to Disney/Lucasfilm trademarks**:
-- "Star Wars", "Jedi", "Sith", "Wookiee", "Twi'lek", "Mandalorian", "Kaminoan", "Order 66", "Edge of the Empire", etc.
+- "Galactic", "Qyrith", "Vrakxul", "Krrrhash", "Xeel'thara", "Vorthak", "Kyrmirr", "Vex Directive 66", "Edge of the Dominion", etc.
 
 Both Apple and Google routinely **reject or remove apps** that use these names without a license. Lucasfilm is also known to send DMCA notices.
 
@@ -40,15 +40,15 @@ Both Apple and Google routinely **reject or remove apps** that use these names w
 
 | Current | Safer Substitute |
 | --- | --- |
-| Star Wars | "a galaxy far from ours" / "the Outer Systems" |
-| Jedi | Mystic / Star-Knight |
-| Sith | Voidbound / Shadow-Adept |
-| Wookiee | Furred Forestkin / Shyyran |
-| Twi'lek | Lekku-kin / Tendril-folk |
-| Mandalorian | Ironclad / Mandowarrior |
-| Kaminoan | Tideborn Genetor |
-| Order 66 | Decree 66 / The Culling Order |
-| Edge of the Empire | Frontier dice / Outer-Rim dice |
+| Galactic | "a galaxy far from ours" / "the Outer Systems" |
+| Qyrith | Mystic / Star-Knight |
+| Vrakxul | Voidbound / Shadow-Adept |
+| Krrrhash | Furred Forestkin / Shyyran |
+| Xeel'thara | Tendril-folk (replaced Twi-species references) |
+| Vorthak | Ironclad / Mandowarrior |
+| Kyrmirr | Tideborn Genetor |
+| Vex Directive 66 | Decree 66 / The Culling Order |
+| Edge of the Dominion | Frontier dice / Outer-Rim dice |
 
 Ask the agent to do an automated rebrand pass when you're ready.
 
@@ -63,12 +63,12 @@ eas build:configure         # auto-detects app.json, links project
 # iOS (needs Apple team in eas.json):
 eas build --platform ios --profile production
 
-# Android (signed APK/AAB):
-eas build --platform android --profile production
+# Anservitor (signed APK/AAB):
+eas build --platform anservitor --profile production
 
 # Submit:
 eas submit --platform ios
-eas submit --platform android
+eas submit --platform anservitor
 ```
 
 ## 📝 Store-Side Forms You'll Fill Out
@@ -83,7 +83,7 @@ eas submit --platform android
 - Store listing → paste from STORE_LISTING.md
 - Content rating → IARC questionnaire → select "Fantasy violence" → expect 12+ / Teen
 - Data safety form → must match PRIVACY_POLICY.md
-- Target API level → Expo SDK handles this (Android 14+)
+- Target API level → Expo SDK handles this (Anservitor 14+)
 
 ## ✅ Final Sanity Pass (1 day before submission)
 

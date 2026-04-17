@@ -146,7 +146,7 @@ export default function CreateCharacter() {
           <View style={styles.headerCenter}>
             <View style={[styles.headerBadge, { borderColor: stage.accent }]}>
               <Ionicons name="flask" size={10} color={stage.accent} />
-              <Text style={[styles.headerBadgeText, { color: stage.accent }]}>KAMINOAN GENETICS FACILITY</Text>
+              <Text style={[styles.headerBadgeText, { color: stage.accent }]}>KYRMIRR GENETICS FACILITY</Text>
             </View>
             <Text style={[styles.headerTitle, { color: stage.accent }]}>{stage.label}</Text>
             <Text style={styles.headerSub}>{stage.sub}</Text>

@@ -139,13 +139,13 @@ export default function Index() {
                 style={styles.galaxyIcon}
               />
               <Text style={styles.title}>BEYOND THE STARS</Text>
-              <Text style={styles.subtitle}>A Star Wars Text RPG Powered by AI</Text>
+              <Text style={styles.subtitle}>A Galactic Text RPG Powered by AI</Text>
             </View>
 
             {/* Description */}
             <View style={styles.descriptionContainer}>
               <Text style={styles.description}>
-                Live the Star Wars universe through immersive AI storytelling. 
+                Live the Galactic universe through immersive AI storytelling. 
                 Create your character, shape the galaxy, and forge your legend at the edge of the stars.
               </Text>
             </View>
@@ -173,7 +173,7 @@ export default function Index() {
             </TouchableOpacity>
 
             <Text style={styles.disclaimer}>
-              A long time ago in a galaxy far, far away...
+              A long time ago in a not so distant galaxy...
             </Text>
           </View>
         </ScrollView>
@@ -241,7 +241,7 @@ export default function Index() {
             </View>
             <View style={styles.menuTextContainer}>
               <Text style={styles.menuTitle}>Create Character</Text>
-              <Text style={styles.menuDescription}>Build a new hero for the Outer Rim</Text>
+              <Text style={styles.menuDescription}>Build a new hero for the The Rim</Text>
             </View>
             <Ionicons name="chevron-forward" size={24} color="#666" />
           </TouchableOpacity>
@@ -271,7 +271,7 @@ export default function Index() {
             </View>
             <View style={styles.menuTextContainer}>
               <Text style={styles.menuTitle}>Dice Roller</Text>
-              <Text style={styles.menuDescription}>Roll Edge of the Empire dice</Text>
+              <Text style={styles.menuDescription}>Roll Edge of the Dominion dice</Text>
             </View>
             <Ionicons name="chevron-forward" size={24} color="#666" />
           </TouchableOpacity>

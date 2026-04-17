@@ -55,7 +55,7 @@ export default function SocialScreen() {
   const shareApp = async () => {
     try {
       await Share.share({
-        message: `✦ BEYOND THE STARS ✦\nA Star Wars Text RPG Powered by AI\n\nCreate your own character. Shape the galaxy. Forge your legend.\n\n🌌 Download now and begin your adventure!\n\n#BeyondTheStars #StarWars #TextRPG`,
+        message: `✦ BEYOND THE STARS ✦\nA Galactic Text RPG Powered by AI\n\nCreate your own character. Shape the galaxy. Forge your legend.\n\n🌌 Download now and begin your adventure!\n\n#BeyondTheStars #GalacticRPG #TextRPG`,
         title: 'Beyond the Stars',
       });
     } catch (error) {

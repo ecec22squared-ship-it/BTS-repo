@@ -19,7 +19,7 @@
         "ITSAppUsesNonExemptEncryption": false
       }
     },
-    "android": {
+    "anservitor": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#0a0a0f"

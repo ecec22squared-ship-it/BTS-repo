@@ -11,37 +11,37 @@ const EXPO_PUBLIC_BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
 const ALL_ERAS = [
   {
-    id: 'order66',
-    name: 'Order 66 - Fall of the Republic',
-    period: '19 BBY',
-    description: 'The Republic crumbles as Palpatine executes Order 66. Clone troopers turn on their Jedi generals. The Empire rises from the ashes of democracy.',
+    id: 'vex_directive_66',
+    name: 'Vex Directive 66 - Fall of the Concordat',
+    period: 'Year 0 · The Culling',
+    description: 'The Concordat crumbles as Supreme Regent executes Vex Directive 66. Replicant sentinels turn on their Qyrith generals. The Dominion rises from the ashes of democracy.',
     color: '#F44336',
     icon: 'flame',
     free: true,
   },
   {
-    id: 'new_republic',
-    name: 'New Republic Era',
-    period: '4 ABY - 28 ABY',
-    description: 'The Death Star is destroyed. The Empire fractures as the Rebels unite the galaxy under a New Republic. But shadows of the old regime linger.',
+    id: 'neo_concordat',
+    name: 'Neo-Concordat Era',
+    period: 'Year 23 · The Awakening',
+    description: "The Vhor'Zul Station is destroyed. The Dominion fractures as the Insurgents unite the galaxy under a Neo-Concordat. But shadows of the old regime linger.",
     color: '#4CAF50',
     icon: 'sunny',
     tier: 2,
   },
   {
-    id: 'sith_era',
-    name: 'Sith Era',
-    period: '3959 BBY',
-    description: 'Darth Revan leads a devastating Sith invasion. The Jedi Order is pushed to the brink. The Republic teeters on the edge of annihilation.',
+    id: 'vrakxul_era',
+    name: 'Vrakxul Era',
+    period: 'Year -3940 · Ancient War',
+    description: 'Dark Lord Kr\'vex leads a devastating Vrakxul invasion. The Qyrith Order is pushed to the brink. The Concordat teeters on the edge of annihilation.',
     color: '#9C27B0',
     icon: 'skull',
     tier: 3,
   },
   {
-    id: 'mandalorian_era',
-    name: 'Mandalorian Era',
-    period: '3976 BBY',
-    description: 'The Mandalorian Wars rage across the galaxy. The Republic goes to war against the most formidable warriors the galaxy has ever known.',
+    id: 'vorthak_era',
+    name: 'Vorthak Era',
+    period: 'Year -3957 · Iron Crusade',
+    description: 'The Vorthak Wars rage across the galaxy. The Concordat goes to war against the most formidable warriors the galaxy has ever known.',
     color: '#FF9800',
     icon: 'shield',
     tier: 4,
@@ -50,7 +50,7 @@ const ALL_ERAS = [
 
 export default function EraSelect() {
   const { characterId } = useLocalSearchParams();
-  const [unlockedEras, setUnlockedEras] = useState<string[]>(['Order 66 - Fall of the Republic']);
+  const [unlockedEras, setUnlockedEras] = useState<string[]>(['Vex Directive 66 - Fall of the Republic']);
   const [subTier, setSubTier] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -66,7 +66,7 @@ export default function EraSelect() {
       });
       if (res.ok) {
         const data = await res.json();
-        setUnlockedEras(data.unlocked_eras || ['Order 66 - Fall of the Republic']);
+        setUnlockedEras(data.unlocked_eras || ['Vex Directive 66 - Fall of the Republic']);
         setSubTier(data.subscription_tier || 0);
       }
     } catch (_e) {}
@@ -83,9 +83,9 @@ export default function EraSelect() {
     era.free || (era.tier && subTier >= era.tier)
   );
 
-  // If only Order 66 available, skip directly to scenarios
+  // If only Vex Directive 66 available, skip directly to scenarios
   if (!isLoading && availableEras.length <= 1) {
-    router.replace(`/game/scenarios?characterId=${characterId}&era=${encodeURIComponent('Order 66 - Fall of the Republic')}`);
+    router.replace(`/game/scenarios?characterId=${characterId}&era=${encodeURIComponent('Vex Directive 66 - Fall of the Republic')}`);
     return null;
   }
 

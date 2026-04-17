@@ -47,7 +47,7 @@ def main():
 
         # 04 - Stage 03 Growth
         print("04 - Stage 03 Growth Chamber")
-        page.get_by_text("Twi'lek", exact=True).click(force=True)
+        page.get_by_text("Xeel'thara", exact=True).click(force=True)
         page.wait_for_timeout(300)
         page.get_by_text("Next", exact=True).click(force=True)
         page.wait_for_timeout(800)

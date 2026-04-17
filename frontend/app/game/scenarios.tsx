@@ -34,7 +34,7 @@ interface Scenario {
 
 export default function ScenarioSelect() {
   const { characterId, era } = useLocalSearchParams();
-  const selectedEra = (era as string) || 'Order 66 - Fall of the Republic';
+  const selectedEra = (era as string) || 'Vex Directive 66 - Fall of the Republic';
   const { createGameSession } = useGameStore();
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [isLoading, setIsLoading] = useState(true);

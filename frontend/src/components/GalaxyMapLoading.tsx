@@ -1,15 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
 
-// Galaxy map grid - Star Wars sector coordinates
+// Galaxy map grid - Galactic sector coordinates
 // Each cell: 0=empty, 1=star, 2=route-node, 3=current-plot
 const GALAXY_SECTORS = [
-  ['Tingel Arm',    'Wild Space',    'Unknown Regions', 'Chiss Space',   'Wild Space'   ],
-  ['Outer Rim',     'Kessel',        'Dathomir',        'Lothal',        'Jakku'        ],
-  ['Mid Rim',       'Takodana',      'Naboo',           'Kashyyyk',      'Ryloth'       ],
-  ['Expansion',     'Ord Mantell',   'Core Worlds',     'Corellia',      'Nal Hutta'    ],
-  ['Inner Rim',     'Batuu',         'Coruscant',       'Kuat',          'Florrum'      ],
-  ['Deep Core',     'Bracca',        'Byss',            'Nar Shaddaa',   'Vandor'       ],
+  ['Vhaxen Arm',     'Wyld Reach',    'Uncharted Veil',    'Thyxi Bound',    'Wyld Reach'       ],
+  ['Vex Marches',    "Kzz'el",        "Dathrym",           "Lorthal",        "Jhakkar"          ],
+  ['Myd Reach',      "Tak'odrin",     "Nebora",            "Ky'rrahsh",      "Xeel'tharia"      ],
+  ['Expanse',        "Ord Mantyll",   "Corr Worlds",       "Korveth",        "Nal Vzorga"       ],
+  ['Inr Marches',    "Bhatuu",        "Corvax Prime",      "Kuathh",          "Floxxum"          ],
+  ['Voidcore',       "Bhracca",       "Byzzar",            "Vrak'Shaddain",  "Vhandir"          ],
 ];
 
 const ROUTE_CONNECTIONS = [

@@ -182,7 +182,7 @@ def test_create_character_with_equipment(auth_headers):
         "species": "Human",
         "career": "Bounty Hunter",
         "specialization": "Assassin",
-        "backstory": "A deadly tracker from the Outer Rim"
+        "backstory": "A deadly tracker from the The Rim"
     }
     
     response = requests.post(f"{BASE_URL}/api/characters", json=char_data, headers=auth_headers)
@@ -341,7 +341,7 @@ def test_action_auto_detects_skill(auth_headers):
     requests.post(f"{BASE_URL}/api/game/sessions/{session['session_id']}/start", headers=auth_headers)
     
     # Send action with skill keyword
-    action_data = {"action": "I shoot at the stormtrooper"}
+    action_data = {"action": "I shoot at the dominion sentinel"}
     response = requests.post(
         f"{BASE_URL}/api/game/sessions/{session['session_id']}/action",
         json=action_data,
@@ -377,7 +377,7 @@ def test_action_returns_dice_line_format(auth_headers):
     # Create character and session
     char_data = {
         "name": "TEST_Format Char",
-        "species": "Twi'lek",
+        "species": "Xeel'thara",
         "career": "Smuggler",
         "specialization": "Scoundrel"
     }
@@ -477,7 +477,7 @@ def test_full_v2_flow(auth_headers):
     # 3. Create character (should get auto-equipment)
     char_data = {
         "name": "TEST_Integration Hero",
-        "species": "Wookiee",
+        "species": "Krrrhash",
         "career": "Hired Gun",
         "specialization": "Marauder",
         "backstory": "A fierce warrior seeking glory"

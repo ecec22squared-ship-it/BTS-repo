@@ -1,4 +1,4 @@
-// Star Wars: Edge of the Empire Game Types
+// Galactic: Edge of the Dominion Game Types
 
 export interface CharacterStats {
   brawn: number;

@@ -223,7 +223,7 @@ export default function GamePlay() {
       if (result.warning && (result.warning_severity === 'ai_limit' || result.warning_severity === 'error')) {
         const errorMsg: GameMessage & { dice_line?: string } = {
           role: 'game_master',
-          content: result.warning_message || 'A disturbance in the Force has interrupted your adventure. Please try again.',
+          content: result.warning_message || 'A disturbance in the Resonance has interrupted your adventure. Please try again.',
           timestamp: new Date().toISOString()
         };
         if (!overrideAction) {
@@ -288,7 +288,7 @@ export default function GamePlay() {
       // Show error in chat instead of silently removing the message
       const errorMsg: GameMessage & { dice_line?: string } = {
         role: 'game_master',
-        content: 'A disturbance in the Force has interrupted your adventure. Please try again.',
+        content: 'A disturbance in the Resonance has interrupted your adventure. Please try again.',
         timestamp: new Date().toISOString()
       };
       if (overrideAction) {

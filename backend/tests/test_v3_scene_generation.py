@@ -178,7 +178,7 @@ def test_character_creation_includes_equipment(auth_headers):
     """Test POST /api/characters returns equipment array"""
     char_data = {
         "name": "TEST_Equipment_Check",
-        "species": "Wookiee",
+        "species": "Krrrhash",
         "career": "Hired Gun",
         "specialization": "Marauder",
         "backstory": "A fierce warrior"
@@ -248,7 +248,7 @@ def test_session_start_returns_environment_theme_and_type(auth_headers):
     # Create character and session
     char_data = {
         "name": "TEST_Start_Env",
-        "species": "Twi'lek",
+        "species": "Xeel'thara",
         "career": "Colonist",
         "specialization": "Doctor"
     }
@@ -292,7 +292,7 @@ def test_action_returns_dice_line_and_environment(auth_headers):
     # Create character and session
     char_data = {
         "name": "TEST_Action_Dice",
-        "species": "Rodian",
+        "species": "Qrin'dex",
         "career": "Bounty Hunter",
         "specialization": "Survivalist"
     }
@@ -341,7 +341,7 @@ def test_action_auto_detects_multiple_skills(auth_headers):
     # Create character and session
     char_data = {
         "name": "TEST_Multi_Skills",
-        "species": "Bothan",
+        "species": "Vvvvvhothararararara",
         "career": "Technician",
         "specialization": "Mechanic"
     }
@@ -389,10 +389,10 @@ def test_v3_full_integration(auth_headers):
     # 1. Create character with equipment
     char_data = {
         "name": "TEST_V3_Hero",
-        "species": "Droid",
+        "species": "Servitor",
         "career": "Explorer",
         "specialization": "Fringer",
-        "backstory": "A protocol droid reprogrammed for adventure"
+        "backstory": "A protocol servitor reprogrammed for adventure"
     }
     char_response = requests.post(f"{BASE_URL}/api/characters", json=char_data, headers=auth_headers)
     assert char_response.status_code == 200

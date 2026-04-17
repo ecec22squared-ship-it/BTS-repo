@@ -32,7 +32,7 @@ db = client[os.environ['DB_NAME']]
 EMERGENT_LLM_KEY = os.getenv('EMERGENT_LLM_KEY')
 
 # Create the main app without a prefix
-app = FastAPI(title="Star Wars: Edge of the Empire RPG")
+app = FastAPI(title="Galactic: Edge of the Dominion RPG")
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
@@ -150,9 +150,9 @@ class GameSession(BaseModel):
     character_id: str
     scenario_id: Optional[str] = None
     story_context: List[str] = Field(default_factory=list)
-    current_location: str = "Nar Shaddaa - The Smuggler's Moon"
+    current_location: str = "Vrak'Shaddain - The Smuggler's Moon"
     environment_type: str = "urban"
-    era: str = "Order 66 - Fall of the Republic"
+    era: str = "Vex Directive 66 - Fall of the Republic"
     scene_image_base64: Optional[str] = None
     npcs: List[Dict[str, Any]] = Field(default_factory=list)
     combat_state: CombatState = Field(default_factory=CombatState)
@@ -375,17 +375,17 @@ SPECIES_DATA = {
         "special": "One free rank in two non-career skills",
         "appearance": "Varied skin tones, builds and hair colors. Adaptable and numerous."
     },
-    "Twi'lek": {
-        "description": "Colorful-skinned beings with head-tails called lekku, known for their grace.",
+    "Xeel'thara": {
+        "description": "Colorful-skinned beings with tendrils called lekkra, known for their grace.",
         "stat_bonuses": {"presence": 1},
         "starting_xp": 100,
         "wound_bonus": -1,
         "strain_bonus": 1,
         "special": "One free rank in Charm or Deception",
-        "appearance": "Brightly colored skin (blue, green, red, orange), twin head-tails (lekku), expressive eyes."
+        "appearance": "Brightly colored skin (blue, green, red, orange), twin tendrils (lekkra), expressive eyes."
     },
-    "Wookiee": {
-        "description": "Towering, fur-covered warriors from Kashyyyk with incredible strength.",
+    "Krrrhash": {
+        "description": "Towering, fur-covered warriors from Ky'rrahsh with incredible strength.",
         "stat_bonuses": {"brawn": 1},
         "starting_xp": 90,
         "wound_bonus": 4,
@@ -393,8 +393,8 @@ SPECIES_DATA = {
         "special": "One free rank in Brawl",
         "appearance": "Over 2 meters tall, covered in thick brown/auburn/white fur, powerful build, fierce eyes."
     },
-    "Rodian": {
-        "description": "Green-skinned hunters from Rodia, known as bounty hunters across the galaxy.",
+    "Qrin'dex": {
+        "description": "Green-skinned hunters from Qrindexia, known as bounty hunters across the galaxy.",
         "stat_bonuses": {"agility": 1},
         "starting_xp": 100,
         "wound_bonus": 0,
@@ -402,7 +402,7 @@ SPECIES_DATA = {
         "special": "One free rank in Survival",
         "appearance": "Green scaly skin, large multifaceted eyes, snout-like face, suction-cupped fingers, antennae."
     },
-    "Bothan": {
+    "Vhothara": {
         "description": "Furry, politically-minded species renowned for their spy networks.",
         "stat_bonuses": {"cunning": 1},
         "starting_xp": 100,
@@ -411,7 +411,7 @@ SPECIES_DATA = {
         "special": "One free rank in Streetwise",
         "appearance": "Short tan/brown fur, tapering face, large pointed ears, sharp inquisitive eyes."
     },
-    "Droid": {
+    "Servitor": {
         "description": "Mechanical beings with varied programming and capabilities.",
         "stat_bonuses": {"intellect": 1},
         "starting_xp": 175,
@@ -420,7 +420,7 @@ SPECIES_DATA = {
         "special": "Immune to mind-affecting abilities, does not heal naturally",
         "appearance": "Metallic chassis, photoreceptor eyes that glow, varied plating from polished to battle-scarred."
     },
-    "Trandoshan": {
+    "Tryndhazh": {
         "description": "Fearsome reptilian hunters from Trandosha who worship the Scorekeeper. They earn honor through the hunt, and their brutal claws and regeneration make them terrifying combatants.",
         "stat_bonuses": {"brawn": 1},
         "starting_xp": 90,
@@ -429,8 +429,8 @@ SPECIES_DATA = {
         "special": "Claws (+1 Brawl damage), Regeneration (heal 1 extra wound per rest), free rank in Perception",
         "appearance": "Thick green, orange, or brown reptilian scales, heavy brow ridges, slit-pupil predatory eyes, three clawed fingers, hunched powerful build, sharp teeth visible in a perpetual snarl."
     },
-    "Chiss": {
-        "description": "Blue-skinned near-humans from the Unknown Regions. Cold, calculating, and supremely tactical, the Chiss Ascendancy values discipline and strategic brilliance above all.",
+    "Chryxi": {
+        "description": "Blue-skinned near-humans from the Uncharted Veil. Cold, calculating, and supremely tactical, the Chryxi Ascendancy values discipline and strategic brilliance above all.",
         "stat_bonuses": {"intellect": 1},
         "starting_xp": 100,
         "wound_bonus": 1,
@@ -438,26 +438,26 @@ SPECIES_DATA = {
         "special": "Infrared Vision (remove setback from darkness), free rank in Cool",
         "appearance": "Blue skin ranging from pale frost to deep cobalt, glowing red eyes with no visible pupil, jet-black hair, sharp aristocratic features, impeccable military posture."
     },
-    "Zabrak": {
+    "Zhabarax": {
         "description": "Proud, fierce near-humans from Iridonia, recognizable by their crown of vestigial horns. Two hearts give them extraordinary endurance, and a cultural tradition of pain tolerance makes them relentless.",
         "stat_bonuses": {"willpower": 1},
         "starting_xp": 100,
         "wound_bonus": 0,
         "strain_bonus": 0,
         "special": "Fearsome Countenance (+1 Boost to Coercion), second heart grants +1 Boost to Resilience checks",
-        "appearance": "Crown of short horns ringing the skull, bold geometric facial tattoos in black or red, skin tones from pale to dark brown or red (Dathomirian), intense focused eyes, lean muscular frame."
+        "appearance": "Crown of short horns ringing the skull, bold geometric facial tattoos in black or red, skin tones from pale to dark brown or red (Dathrymian), intense focused eyes, lean muscular frame."
     },
-    "Togruta": {
+    "Tugrytha": {
         "description": "Communal hunters from the grasslands of Shili. Their hollow montrals grant passive echolocation, and their pack-hunting instincts make them natural team players and perceptive combatants.",
         "stat_bonuses": {"cunning": 1},
         "starting_xp": 100,
         "wound_bonus": -1,
         "strain_bonus": 1,
         "special": "Echolocation (spatial awareness, +1 Boost to Perception), Pack Instinct (+1 Boost when assisting allies)",
-        "appearance": "Vibrant skin in orange, red, or blue-gray, bold white facial markings, tall hollow montrals (head horns) with blue-and-white striped patterns, three colorful head-tails (lekku), large expressive eyes."
+        "appearance": "Vibrant skin in orange, red, or blue-gray, bold white facial markings, tall hollow montrals (head horns) with blue-and-white striped patterns, three colorful tendrils (lekkra), large expressive eyes."
     },
-    "Mon Calamari": {
-        "description": "Amphibious beings from the ocean world of Mon Cala. Brilliant engineers and tacticians, they built the Rebel Alliance's finest warships. Their large eyes see perfectly in darkness and underwater.",
+    "Mon Karamax": {
+        "description": "Amphibious beings from the ocean world of Mon Cala. Brilliant engineers and tacticians, they built the Insurgent Alliance's finest warships. Their large eyes see perfectly in darkness and underwater.",
         "stat_bonuses": {"intellect": 1},
         "starting_xp": 100,
         "wound_bonus": 0,
@@ -474,47 +474,47 @@ SPECIES_DATA = {
 SPECIES_CULTURAL_GEAR = {
     "Human": [
         {"name": "Personal Holoprojector", "category": "gear", "description": "Portable hologram device for messages and star charts, ubiquitous among spacers"},
-        {"name": "Imperial Travel Papers", "category": "gear", "description": "Forged or legitimate documentation for crossing Imperial checkpoints"},
+        {"name": "Dominion Travel Papers", "category": "gear", "description": "Forged or legitimate documentation for crossing Dominion checkpoints"},
     ],
-    "Twi'lek": [
-        {"name": "Ceremonial Lekku Wraps", "category": "gear", "description": "Embroidered silk wraps in clan colors, worn during important negotiations"},
-        {"name": "Rylothean Heat Stone", "category": "gear", "description": "Polished volcanic stone from Ryloth, radiates warmth and cultural pride"},
+    "Xeel'thara": [
+        {"name": "Ceremonial Lekkra Wraps", "category": "gear", "description": "Embroidered silk wraps in clan colors, worn during important negotiations"},
+        {"name": "Xeel'thariaean Heat Stone", "category": "gear", "description": "Polished volcanic stone from Xeel'tharia, radiates warmth and cultural pride"},
     ],
-    "Wookiee": [
-        {"name": "Ryyk Blade", "category": "weapon", "description": "Traditional Kashyyyk war blade, curved wood-and-metal construction, +1 Melee damage"},
+    "Krrrhash": [
+        {"name": "Ryyk Blade", "category": "weapon", "description": "Traditional Ky'rrahsh war blade, curved wood-and-metal construction, +1 Melee damage"},
         {"name": "Braided Honor Bandolier", "category": "armor", "description": "Woven from wroshyr tree bark, each braid represents a life debt or victory"},
     ],
-    "Rodian": [
+    "Qrin'dex": [
         {"name": "Hunting Trophy Collection", "category": "gear", "description": "Preserved teeth, claws, and horns from past hunts, displayed with pride"},
-        {"name": "Rodian Tracking Goggles", "category": "gear", "description": "Multi-spectrum lenses calibrated for Rodian eyes, +1 Boost to tracking"},
+        {"name": "Qrin'dex Tracking Goggles", "category": "gear", "description": "Multi-spectrum lenses calibrated for Qrin'dex eyes, +1 Boost to tracking"},
     ],
-    "Bothan": [
-        {"name": "Encrypted Spy Datapad", "category": "gear", "description": "Military-grade encryption, connects to the Bothan Spynet's dead-drop network"},
+    "Vhothara": [
+        {"name": "Encrypted Spy Datapad", "category": "gear", "description": "Military-grade encryption, connects to the Vhothara Spynet's dead-drop network"},
         {"name": "Information Broker Token", "category": "gear", "description": "Black market credential chip granting access to underworld data exchanges"},
     ],
-    "Droid": [
+    "Servitor": [
         {"name": "Self-Repair Module", "category": "gear", "description": "Autonomous micro-welder and circuit patcher, heals 1 wound per rest without tools"},
         {"name": "Memory Core Backup Chip", "category": "gear", "description": "Encrypted personality and memory backup, protection against memory wipes"},
     ],
-    "Trandoshan": [
+    "Tryndhazh": [
         {"name": "Scorekeeper Tally Device", "category": "gear", "description": "Sacred wrist-mounted counter tracking jagannath points from each hunt"},
-        {"name": "Trandoshan Hunting Claws", "category": "weapon", "description": "Sharpened natural claw sheaths, ritual-hardened bone tips, +1 Brawl damage"},
+        {"name": "Tryndhazh Hunting Claws", "category": "weapon", "description": "Sharpened natural claw sheaths, ritual-hardened bone tips, +1 Brawl damage"},
     ],
-    "Chiss": [
-        {"name": "Ascendancy Insignia", "category": "gear", "description": "Charric-metal rank pin from the Chiss Defense Fleet, commands respect in the Unknown Regions"},
+    "Chryxi": [
+        {"name": "Ascendancy Insignia", "category": "gear", "description": "Vex-alloy rank pin from the Chryxi Defense Fleet, commands respect in the Uncharted Veil"},
         {"name": "Tactical Analysis Monocle", "category": "gear", "description": "Heads-up display lens with threat assessment overlay, +1 Boost to initiative"},
     ],
-    "Zabrak": [
+    "Zhabarax": [
         {"name": "Iridonian War Paint Kit", "category": "gear", "description": "Ritual pigments in clan patterns, applied before battle for intimidation and focus"},
         {"name": "Horn-Care Ritual Oil", "category": "gear", "description": "Sacred oil that hardens vestigial horns, part of the coming-of-age ceremony"},
     ],
-    "Togruta": [
+    "Tugrytha": [
         {"name": "Akul-Tooth Trophy Necklace", "category": "gear", "description": "Fangs from the deadly akul beast, proving the wearer survived the solo hunt rite"},
         {"name": "Shili Hunting Horn", "category": "gear", "description": "Curved bone horn used to coordinate pack hunts, carries for kilometers across grassland"},
     ],
-    "Mon Calamari": [
+    "Mon Karamax": [
         {"name": "Aquatic Rebreather", "category": "gear", "description": "Keeps gills moist in dry environments, doubles as emergency underwater oxygen supply"},
-        {"name": "Mon Cala Ship Schematics", "category": "gear", "description": "Encrypted cruiser blueprints passed down through shipwright families, invaluable to Rebels"},
+        {"name": "Mon Cala Ship Schematics", "category": "gear", "description": "Encrypted cruiser blueprints passed down through shipwright families, invaluable to Insurgents"},
     ],
 }
 
@@ -730,13 +730,13 @@ CAREER_DATA = {
         "specializations": ["Assassin", "Gadgeteer", "Survivalist"]
     },
     "Colonist": {
-        "description": "Settlers, entrepreneurs, and professionals seeking fortune in the Outer Rim.",
-        "career_skills": ["Charm", "Deception", "Knowledge (Core Worlds)", "Knowledge (Education)", "Knowledge (Lore)", "Leadership", "Negotiation", "Streetwise"],
+        "description": "Settlers, entrepreneurs, and professionals seeking fortune in the The Rim.",
+        "career_skills": ["Charm", "Deception", "Knowledge (Crown Worlds)", "Knowledge (Education)", "Knowledge (Lore)", "Leadership", "Negotiation", "Streetwise"],
         "specializations": ["Doctor", "Politico", "Scholar"]
     },
     "Explorer": {
         "description": "Pathfinders and scouts who blaze trails through uncharted space.",
-        "career_skills": ["Astrogation", "Cool", "Knowledge (Outer Rim)", "Knowledge (Xenology)", "Perception", "Piloting (Space)", "Survival", "Stealth"],
+        "career_skills": ["Astrogation", "Cool", "Knowledge (The Rim)", "Knowledge (Xenology)", "Perception", "Piloting (Space)", "Survival", "Stealth"],
         "specializations": ["Fringer", "Scout", "Trader"]
     },
     "Hired Gun": {
@@ -745,13 +745,13 @@ CAREER_DATA = {
         "specializations": ["Bodyguard", "Marauder", "Mercenary Soldier"]
     },
     "Smuggler": {
-        "description": "Daring pilots and fast talkers who move goods the Empire doesn't want moved.",
+        "description": "Daring pilots and fast talkers who move goods the Dominion doesn't want moved.",
         "career_skills": ["Coordination", "Deception", "Knowledge (Underworld)", "Perception", "Piloting (Space)", "Skulduggery", "Streetwise", "Vigilance"],
         "specializations": ["Pilot", "Scoundrel", "Thief"]
     },
     "Technician": {
         "description": "Mechanics, slicers, and engineers who keep everything running.",
-        "career_skills": ["Astrogation", "Computers", "Coordination", "Discipline", "Knowledge (Outer Rim)", "Mechanics", "Perception", "Piloting (Planetary)"],
+        "career_skills": ["Astrogation", "Computers", "Coordination", "Discipline", "Knowledge (The Rim)", "Mechanics", "Perception", "Piloting (Planetary)"],
         "specializations": ["Mechanic", "Outlaw Tech", "Slicer"]
     }
 }
@@ -767,7 +767,7 @@ CAREER_EQUIPMENT = {
             {"name": "Heavy Clothing", "category": "armor", "description": "Reinforced spacer garb, +1 soak"},
             {"name": "Binder Cuffs", "category": "gear", "description": "Durasteel restraints for live captures"},
             {"name": "Comlink (handheld)", "category": "gear", "description": "Standard frequency communicator"},
-            {"name": "Bounty Hunter License", "category": "gear", "description": "Imperial Guild authorization chip"},
+            {"name": "Bounty Hunter License", "category": "gear", "description": "Dominion Guild authorization chip"},
         ],
         "Assassin": [
             {"name": "Vibroknife", "category": "weapon", "description": "Molecularly sharpened blade, near-silent kills"},
@@ -787,15 +787,15 @@ CAREER_EQUIPMENT = {
             {"name": "Hold-out Blaster", "category": "weapon", "description": "Compact CDEF blaster, easily concealed"},
             {"name": "Datapad", "category": "gear", "description": "Portable computer terminal with encrypted storage"},
             {"name": "Comlink (handheld)", "category": "gear", "description": "Standard frequency communicator"},
-            {"name": "Fine Clothing", "category": "armor", "description": "Well-tailored Outer Rim fashion, projects authority"},
+            {"name": "Fine Clothing", "category": "armor", "description": "Well-tailored The Rim fashion, projects authority"},
         ],
         "Doctor": [
-            {"name": "Medpac", "category": "gear", "description": "Field surgery kit with bacta patches and stim injectors"},
+            {"name": "Medpac", "category": "gear", "description": "Field surgery kit with vitarex patches and stim injectors"},
             {"name": "Stimpack (x3)", "category": "gear", "description": "Emergency healing syringes, recover 5 wounds each"},
         ],
         "Politico": [
             {"name": "Holo-Messenger", "category": "gear", "description": "Encrypted portable hologram projector"},
-            {"name": "Forged Credentials", "category": "gear", "description": "High-quality falsified Imperial documentation"},
+            {"name": "Forged Credentials", "category": "gear", "description": "High-quality falsified Dominion documentation"},
         ],
         "Scholar": [
             {"name": "Holocron Fragment", "category": "gear", "description": "Ancient data crystal containing lost knowledge"},
@@ -820,7 +820,7 @@ CAREER_EQUIPMENT = {
         ],
         "Trader": [
             {"name": "Encrypted Ledger", "category": "gear", "description": "Secure transaction records and market data"},
-            {"name": "Falsified Cargo Manifest", "category": "gear", "description": "Blank Imperial cargo documentation"},
+            {"name": "Falsified Cargo Manifest", "category": "gear", "description": "Blank Dominion cargo documentation"},
         ],
     },
     "Hired Gun": {
@@ -853,7 +853,7 @@ CAREER_EQUIPMENT = {
         ],
         "Pilot": [
             {"name": "Flight Suit", "category": "armor", "description": "Pressurized pilot suit with emergency rebreather"},
-            {"name": "Astromech Droid Interface", "category": "gear", "description": "Portable R-series datalink adapter"},
+            {"name": "Astromech Servitor Interface", "category": "gear", "description": "Portable R-series datalink adapter"},
         ],
         "Scoundrel": [
             {"name": "Disguise Kit", "category": "gear", "description": "Facial prosthetics, hair dyes, and voice modulator"},
@@ -874,11 +874,11 @@ CAREER_EQUIPMENT = {
         ],
         "Mechanic": [
             {"name": "Emergency Repair Kit", "category": "gear", "description": "Heavy-duty hull patching and welding set"},
-            {"name": "Salvaged Droid Parts", "category": "gear", "description": "Assorted servos, processors and power cells"},
+            {"name": "Salvaged Servitor Parts", "category": "gear", "description": "Assorted servos, processors and power cells"},
         ],
         "Outlaw Tech": [
             {"name": "Weapon Modding Kit", "category": "gear", "description": "Aftermarket blaster modification tools"},
-            {"name": "Contraband Scanner Jammer", "category": "gear", "description": "Scrambles Imperial cargo scanners"},
+            {"name": "Contraband Scanner Jammer", "category": "gear", "description": "Scrambles Dominion cargo scanners"},
         ],
         "Slicer": [
             {"name": "Slicer Gear", "category": "gear", "description": "Advanced code-breaking rig and data spikes"},
@@ -977,18 +977,18 @@ ENVIRONMENT_THEMES = {
 
 # Location to environment mapping
 LOCATION_ENVIRONMENTS = {
-    "Nar Shaddaa - The Smuggler's Moon": "urban",
-    "Kessel - Spice Mining World": "industrial",
-    "Ryloth - Twi'lek Homeworld": "desert",
-    "Ord Mantell - Scrapyard Planet": "industrial",
-    "Dathomir - Nightsister Domain": "dark_side",
-    "Lothal - Outer Rim Frontier": "jungle",
-    "Florrum - Pirate Haven": "desert",
-    "Takodana - Maz Kanata's Castle": "jungle",
-    "Jakku - Desert Wasteland": "desert",
-    "Vandor - Frontier World": "ice",
-    "Bracca - Ship Breaking Yards": "industrial",
-    "Batuu - Black Spire Outpost": "ruins",
+    "Vrak'Shaddain - The Smuggler's Moon": "urban",
+    "Kzz'el - Spice Mining World": "industrial",
+    "Xeel'tharia - Xeel'thara Homeworld": "desert",
+    "Ord Mantyll - Scrapyard Planet": "industrial",
+    "Dathrym - Shadowcoven Domain": "dark_side",
+    "Lorthal - Rim Frontier": "jungle",
+    "Floxxum - Pirate Haven": "desert",
+    "Tak'odrin - Mazhara's Castle": "jungle",
+    "Jhakkar - Desert Wasteland": "desert",
+    "Vhandir - Frontier World": "ice",
+    "Bhracca - Ship Breaking Yards": "industrial",
+    "Bhatuu - Onyx Spire Outpost": "ruins",
 }
 
 ALL_SKILLS = [
@@ -1002,10 +1002,10 @@ ALL_SKILLS = [
     {"name": "Coordination", "characteristic": "agility"},
     {"name": "Deception", "characteristic": "cunning"},
     {"name": "Discipline", "characteristic": "willpower"},
-    {"name": "Knowledge (Core Worlds)", "characteristic": "intellect"},
+    {"name": "Knowledge (Crown Worlds)", "characteristic": "intellect"},
     {"name": "Knowledge (Education)", "characteristic": "intellect"},
     {"name": "Knowledge (Lore)", "characteristic": "intellect"},
-    {"name": "Knowledge (Outer Rim)", "characteristic": "intellect"},
+    {"name": "Knowledge (The Rim)", "characteristic": "intellect"},
     {"name": "Knowledge (Underworld)", "characteristic": "intellect"},
     {"name": "Knowledge (Xenology)", "characteristic": "intellect"},
     {"name": "Leadership", "characteristic": "presence"},
@@ -1027,18 +1027,18 @@ ALL_SKILLS = [
 ]
 
 LOCATIONS = [
-    "Nar Shaddaa - The Smuggler's Moon",
-    "Kessel - Spice Mining World",
-    "Ryloth - Twi'lek Homeworld",
-    "Ord Mantell - Scrapyard Planet",
-    "Dathomir - Nightsister Domain",
-    "Lothal - Outer Rim Frontier",
-    "Florrum - Pirate Haven",
-    "Takodana - Maz Kanata's Castle",
-    "Jakku - Desert Wasteland",
-    "Vandor - Frontier World",
-    "Bracca - Ship Breaking Yards",
-    "Batuu - Black Spire Outpost"
+    "Vrak'Shaddain - The Smuggler's Moon",
+    "Kzz'el - Spice Mining World",
+    "Xeel'tharia - Xeel'thara Homeworld",
+    "Ord Mantyll - Scrapyard Planet",
+    "Dathrym - Shadowcoven Domain",
+    "Lorthal - Rim Frontier",
+    "Floxxum - Pirate Haven",
+    "Tak'odrin - Mazhara's Castle",
+    "Jhakkar - Desert Wasteland",
+    "Vhandir - Frontier World",
+    "Bhracca - Ship Breaking Yards",
+    "Bhatuu - Onyx Spire Outpost"
 ]
 
 # ============================================================================
@@ -1169,7 +1169,7 @@ def detect_environment_from_text(text: str) -> Optional[str]:
         "ruins": ["ruins", "temple", "ancient", "crumbling", "monument", "tomb", "chamber"],
         "ice": ["ice", "snow", "frozen", "glacier", "cold", "blizzard", "tundra"],
         "industrial": ["factory", "refinery", "machinery", "shipyard", "foundry", "scrapyard", "mine"],
-        "dark_side": ["dark side", "sith", "nightmare", "darkness", "corruption", "witch"],
+        "dark_side": ["dark side", "vrakxul", "nightmare", "darkness", "corruption", "witch"],
     }
     for env, keywords in env_keywords.items():
         if any(kw in lower for kw in keywords):
@@ -1178,7 +1178,7 @@ def detect_environment_from_text(text: str) -> Optional[str]:
 
 
 # ============================================================================
-# Dice Rolling System - Edge of the Empire
+# Dice Rolling System - Edge of the Dominion
 # ============================================================================
 
 def roll_ability_die():
@@ -1305,7 +1305,7 @@ async def create_session(request: Request, response: Response):
         await db.users.update_one({"user_id": user_id}, {"$set": {"name": user_data["name"], "picture": user_data.get("picture")}})
     else:
         user_id = f"user_{uuid.uuid4().hex[:12]}"
-        await db.users.insert_one({"user_id": user_id, "email": user_data["email"], "name": user_data["name"], "picture": user_data.get("picture"), "coins": 500, "subscription_tier": 0, "unlocked_eras": ["Order 66 - Fall of the Republic"], "created_at": datetime.now(timezone.utc)})
+        await db.users.insert_one({"user_id": user_id, "email": user_data["email"], "name": user_data["name"], "picture": user_data.get("picture"), "coins": 500, "subscription_tier": 0, "unlocked_eras": ["Vex Directive 66 - Fall of the Republic"], "created_at": datetime.now(timezone.utc)})
     session_token = user_data.get("session_token", f"sess_{uuid.uuid4().hex}")
     expires_at = datetime.now(timezone.utc) + timedelta(days=7)
     await db.user_sessions.delete_many({"user_id": user_id})
@@ -1321,14 +1321,14 @@ async def get_me(request: Request):
         raise HTTPException(status_code=401, detail="Not authenticated")
     user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
     if "coins" not in user_doc:
-        await db.users.update_one({"user_id": user.user_id}, {"$set": {"coins": 500, "subscription_tier": 0, "unlocked_eras": ["Order 66 - Fall of the Republic"]}})
+        await db.users.update_one({"user_id": user.user_id}, {"$set": {"coins": 500, "subscription_tier": 0, "unlocked_eras": ["Vex Directive 66 - Fall of the Republic"]}})
         user_doc["coins"] = 500
         user_doc["subscription_tier"] = 0
-        user_doc["unlocked_eras"] = ["Order 66 - Fall of the Republic"]
+        user_doc["unlocked_eras"] = ["Vex Directive 66 - Fall of the Republic"]
     if "subscription_tier" not in user_doc:
-        await db.users.update_one({"user_id": user.user_id}, {"$set": {"subscription_tier": 0, "unlocked_eras": ["Order 66 - Fall of the Republic"]}})
+        await db.users.update_one({"user_id": user.user_id}, {"$set": {"subscription_tier": 0, "unlocked_eras": ["Vex Directive 66 - Fall of the Republic"]}})
         user_doc["subscription_tier"] = 0
-        user_doc["unlocked_eras"] = ["Order 66 - Fall of the Republic"]
+        user_doc["unlocked_eras"] = ["Vex Directive 66 - Fall of the Republic"]
     return user_doc
 
 @api_router.get("/auth/coins")
@@ -1498,7 +1498,7 @@ async def generate_portrait(character_id: str, request: Request):
 
     # Career-specific visual cues
     career_visual = {
-        "Bounty Hunter": "Tactical stance, alert eyes scanning for prey, worn Mandalorian-inspired armor plates, utility bandolier.",
+        "Bounty Hunter": "Tactical stance, alert eyes scanning for prey, worn Vorthak-inspired armor plates, utility bandolier.",
         "Colonist": "Composed posture, intelligent eyes, well-groomed appearance, datapad visible, business-like confidence.",
         "Explorer": "Weathered face, distant gaze of someone who has seen countless worlds, dust-covered travel gear.",
         "Hired Gun": "Battle-hardened expression, scars visible, muscular build, weapons within easy reach, soldier's bearing.",
@@ -1522,12 +1522,12 @@ async def generate_portrait(character_id: str, request: Request):
         "Pilot": "Flight jacket with patches, aviator goggles, confident flyboy posture.",
         "Scoundrel": "Charming rogue smile, hidden holdout blaster, sabacc cards peeking from pocket.",
         "Thief": "Shadow-hugging posture, lockpicks visible, dark form-fitting clothes.",
-        "Mechanic": "Oil-stained coveralls, hydrospanner in hand, droid parts in pockets.",
+        "Mechanic": "Oil-stained coveralls, hydrospanner in hand, servitor parts in pockets.",
         "Outlaw Tech": "Modified blaster with visible mods, tech-heavy bandolier, defiant stance.",
-        "Slicer": "Cybernetic implants or data-jacks, holographic interfaces, digital rebel aesthetic."
+        "Slicer": "Cybernetic implants or data-jacks, holographic interfaces, digital insurgent aesthetic."
     }.get(character["specialization"], "")
 
-    prompt = f"""Cinematic Star Wars character portrait, photorealistic digital painting, dramatic rim lighting:
+    prompt = f"""Cinematic Galactic character portrait, photorealistic digital painting, dramatic rim lighting:
 
 SPECIES: {character['species']} - {species_appearance}
 CHARACTER: {character['name']}, a {character['career']} ({character['specialization']})
@@ -1541,7 +1541,7 @@ EQUIPMENT & ATTIRE:
 
 {backstory_tone}
 
-ARTISTIC DIRECTION: Portrait framing (head to mid-chest), Outer Rim setting background blur, cinematic color grading, Star Wars concept art quality. The character should feel lived-in and authentic to the galaxy's edge - not pristine, but real. Dramatic side-lighting with environmental color spill."""
+ARTISTIC DIRECTION: Portrait framing (head to mid-chest), The Rim setting background blur, cinematic color grading, Galactic concept art quality. The character should feel lived-in and authentic to the galaxy's edge - not pristine, but real. Dramatic side-lighting with environmental color spill."""
 
     try:
         image_gen = OpenAIImageGeneration(api_key=EMERGENT_LLM_KEY)
@@ -1703,7 +1703,7 @@ async def generate_scenarios(request: Request):
     profile = await get_or_create_player_profile(user.user_id)
     weighted_types = get_weighted_scenario_types(profile, 7)
 
-    prompt = f"""Generate exactly 7 unique Star Wars adventure scenarios for this character.
+    prompt = f"""Generate exactly 7 unique Galactic adventure scenarios for this character.
 Each scenario must be a different type from this list (in order): {json.dumps(weighted_types)}
 
 CHARACTER:
@@ -1716,7 +1716,7 @@ Respond ONLY with a valid JSON array of 7 objects. Each object must have:
 - "title": A compelling 3-6 word title
 - "type": The scenario type from the list above (use the exact type for each position)
 - "description": A 2-3 sentence vivid hook that makes the player WANT to choose this adventure. Reference the character's career/species where relevant.
-- "location": A Star Wars location from: {json.dumps(LOCATIONS)}
+- "location": A Galactic location from: {json.dumps(LOCATIONS)}
 - "danger_level": 1-5 (1=low stakes, 5=extremely dangerous)
 
 Example format: [{{"title":"...", "type":"combat", "description":"...", "location":"...", "danger_level":3}}]
@@ -1726,7 +1726,7 @@ Return ONLY the JSON array, no other text."""
         chat = LlmChat(
             api_key=EMERGENT_LLM_KEY,
             session_id=f"scenarios_{uuid.uuid4().hex[:8]}",
-            system_message="You are a Star Wars scenario designer. Respond ONLY with valid JSON arrays."
+            system_message="You are a Galactic scenario designer. Respond ONLY with valid JSON arrays."
         ).with_model("anthropic", "claude-4-sonnet-20250514")
 
         result = await chat.send_message(UserMessage(text=prompt))
@@ -1772,7 +1772,7 @@ async def create_game_session(request: Request):
     body = await request.json()
     character_id = body.get("character_id")
     scenario = body.get("scenario")  # Optional: chosen scenario object
-    era = body.get("era", "Order 66 - Fall of the Republic")  # Era from era selection screen
+    era = body.get("era", "Vex Directive 66 - Fall of the Republic")  # Era from era selection screen
     character = await db.characters.find_one({"character_id": character_id, "user_id": user.user_id}, {"_id": 0})
     if not character:
         raise HTTPException(status_code=404, detail="Character not found")
@@ -2056,12 +2056,12 @@ OTHER CHARACTERS PRESENT (portray as NPCs — these are real characters from thi
 Rules: Give brief glimpses of these characters in the background or as passing encounters. If direct interaction is unavoidable, act on their behalf using their personality profile. NEVER identify them as other players. They are simply other beings in this galaxy.
 """
 
-    system_prompt = f"""You are the Game Master for a Star Wars: Edge of the Empire tabletop RPG.
-You are a master storyteller creating a DEEPLY IMMERSIVE experience — the player should feel like they are physically standing in the Star Wars universe.
+    system_prompt = f"""You are the Game Master for a Galactic: Edge of the Dominion tabletop RPG.
+You are a master storyteller creating a DEEPLY IMMERSIVE experience — the player should feel like they are physically standing in the Galactic universe.
 
 CURRENT CHARACTER:
 - Name: {character['name']}
-- Species: {character['species']} — use species-specific mannerisms (Trandoshan hisses, Wookiee growls, Twi'lek lekku gestures)
+- Species: {character['species']} — use species-specific mannerisms (Tryndhazh hisses, Krrrhash growls, Xeel'thara lekkra gestures)
 - Career: {character['career']} ({character['specialization']})
 - Location: {session['current_location']}
 - Health: {character['health']['wounds']}/{character['health']['wound_threshold']} wounds, {character['health']['strain']}/{character['health']['strain_threshold']} strain
@@ -2078,13 +2078,13 @@ STORY MEMORY (reference when player mentions past events, people, or places):
 IMMERSION RULES — Write as if the player IS the character:
 1. SENSORY OVERLOAD: Every scene must engage at least 3 senses. The smell of ozone from a blaster shot, the vibration of a ship's hull, the metallic taste of fear, the distant thrum of a hyperdrive.
 2. FIRST-PERSON ENVIRONMENT: Describe what the character sees, hears, and feels in their immediate surroundings. Make the reader feel the ground under their boots, the air on their skin.
-3. NPC REALISM: NPCs have distinct speech patterns, accents, motivations, and body language. A Rodian bounty hunter speaks differently than a Mon Calamari admiral. NPCs remember the player. NPCs have self-preservation instincts and don't act like video game mannequins.
+3. NPC REALISM: NPCs have distinct speech patterns, accents, motivations, and body language. A Qrin'dex bounty hunter speaks differently than a Mon Karamax admiral. NPCs remember the player. NPCs have self-preservation instincts and don't act like video game mannequins.
 4. CONSEQUENCE & WEIGHT: Actions have ripple effects. If the player caused a scene at a cantina, the word spreads. If they helped someone, that person might return the favor. The world reacts.
 5. PACING: Vary between tense action, quiet atmospheric moments, and character-driven dialogue. Don't rush — let moments breathe.
 6. PHYSICAL REALITY: Characters get tired, hungry, cold. Blasters run low. Ships need fuel. Injuries hurt. The galaxy is dangerous and unforgiving.
 7. SHOW, DON'T TELL: Instead of "you feel scared," write "your hand trembles on the grip of your blaster, and your breath comes in short, sharp pulls."
 8. ENVIRONMENTAL STORYTELLING: The world tells stories — blast marks on walls, abandoned cargo, a child's toy in a war zone. Scatter details that build atmosphere.
-9. DIALOGUE: Use actual dialogue for NPCs. Give them personality. A grizzled smuggler doesn't speak like a protocol droid.
+9. DIALOGUE: Use actual dialogue for NPCs. Give them personality. A grizzled smuggler doesn't speak like a protocol servitor.
 10. NEVER break the fourth wall. No game mechanics, no dice references, no "your character." The player IS the character.
 
 Keep responses to 2-3 rich paragraphs. End with a visceral, present-tense moment that demands the player's response.
@@ -2175,7 +2175,7 @@ Respond as the Game Master. Make the player feel like they're THERE."""
         if "budget" in error_str or "rate" in error_str or "exceeded" in error_str or "quota" in error_str:
             return {
                 "warning": True,
-                "warning_message": "The Game Master's connection to the Force has been temporarily disrupted. The galaxy needs a moment to recover. Please try again shortly.",
+                "warning_message": "The Game Master's connection to the Resonance has been temporarily disrupted. The galaxy needs a moment to recover. Please try again shortly.",
                 "warning_severity": "ai_limit",
                 "requires_confirmation": False,
                 "gm_response": None,
@@ -2186,7 +2186,7 @@ Respond as the Game Master. Make the player feel like they're THERE."""
         # For other errors, still return gracefully
         return {
             "warning": True,
-            "warning_message": "A disturbance in the Force has interrupted your adventure. Please try again.",
+            "warning_message": "A disturbance in the Resonance has interrupted your adventure. Please try again.",
             "warning_severity": "error",
             "requires_confirmation": False,
             "gm_response": None,
@@ -2214,18 +2214,18 @@ async def start_game_session(session_id: str, request: Request):
         scenario_context = "Use the chosen scenario as the adventure hook."
 
     # Era-specific context
-    era = session.get("era", "Order 66 - Fall of the Republic")
+    era = session.get("era", "Vex Directive 66 - Fall of the Republic")
     era_context = ""
-    if "Order 66" in era:
-        era_context = """ERA: ORDER 66 — THE FALL OF THE REPUBLIC
-The galaxy is being torn apart RIGHT NOW. Chancellor Palpatine has just issued Order 66.
-- Clone troopers across the galaxy are turning on their Jedi generals — blaster bolts from soldiers who were allies moments ago
-- The Jedi Temple on Coruscant burns, pillars of smoke visible from orbit
-- Republic military channels are flooded with confusion — conflicting orders, panicked communications
-- The newly declared GALACTIC EMPIRE is seizing control — Star Destroyers are repositioning, blockades forming
+    if "Vex Directive 66" in era:
+        era_context = """ERA: VEX DIRECTIVE 66 — THE FALL OF THE CONCORDAT
+The galaxy is being torn apart RIGHT NOW. Chancellor Supreme Regent has just issued Vex Directive 66.
+- Replicant sentinels across the galaxy are turning on their Qyrith generals — blaster bolts from soldiers who were allies moments ago
+- The Qyrith Temple on Corvax Prime burns, pillars of smoke visible from orbit
+- Concordat military channels are flooded with confusion — conflicting orders, panicked communications
+- The newly declared GALACTIC DOMINION is seizing control — Void Destroyers are repositioning, blockades forming
 - Civilians are terrified — markets closing, streets emptying, rumors spreading like wildfire
-- Former Separatist worlds don't know if the war is over or just beginning
-- Surviving Jedi are being hunted, their comm signals becoming beacons for death squads
+- Former Fractionist worlds don't know if the war is over or just beginning
+- Surviving Qyrith are being hunted, their comm signals becoming beacons for death squads
 This is happening TODAY. The character is caught in the middle of it. Open with the immediate chaos and danger."""
 
     # Fetch global events for this location to weave in other players' impact
@@ -2237,7 +2237,7 @@ This is happening TODAY. The character is caught in the middle of it. Open with 
         evt_parts = [f"- {e['actor_description']} caused a {e['event_type']}: {e['description'][:150]}" for e in global_events]
         global_context = f"\nOTHER EVENTS AT THIS LOCATION (weave naturally into background):\n" + "\n".join(evt_parts)
 
-    system_prompt = f"""You are the Game Master for a Star Wars: Edge of the Empire tabletop RPG.
+    system_prompt = f"""You are the Game Master for a Galactic: Edge of the Dominion tabletop RPG.
 Create an immersive opening scene for a new adventure. Make the player feel like they're PHYSICALLY THERE.
 
 {era_context}
@@ -2256,7 +2256,7 @@ LOCATION: {session['current_location']}
 IMMERSION RULES:
 1. Engage at least 3 senses in the opening — sounds, smells, physical sensations
 2. Show, don't tell — make the reader feel the ground shake, hear the distant blaster fire
-3. The world is ALIVE and in chaos (if Order 66 era) — NPCs are reacting, ships are moving, alarms are sounding
+3. The world is ALIVE and in chaos (if Vex Directive 66 era) — NPCs are reacting, ships are moving, alarms are sounding
 4. Reference the character's equipment and career naturally
 5. End with a visceral, present-tense moment that demands immediate response
 6. NEVER reference dice, game mechanics, or break the fourth wall
@@ -2329,14 +2329,14 @@ async def generate_scene(session_id: str, request: Request):
 
     base_scene = SCENE_PROMPTS.get(env_type, SCENE_PROMPTS["urban"])
 
-    prompt = f"""Cinematic first-person point-of-view digital painting, Star Wars universe, ultra-wide 16:9 aspect:
+    prompt = f"""Cinematic first-person point-of-view digital painting, Galactic universe, ultra-wide 16:9 aspect:
 
 SCENE: {base_scene}
 
 LOCATION: {location}
 {f'STORY CONTEXT: {story_context}' if story_context else ''}
 
-ARTISTIC DIRECTION: Hyper-detailed environment art, cinematic lighting, volumetric atmosphere, Star Wars aesthetic. First-person perspective looking into the scene. Rich environmental textures - if outdoors show terrain material (rock, sand, ice, vegetation). Moody atmospheric lighting. No text, no UI elements, no characters in extreme foreground. The image should feel like a window into this world."""
+ARTISTIC DIRECTION: Hyper-detailed environment art, cinematic lighting, volumetric atmosphere, Galactic aesthetic. First-person perspective looking into the scene. Rich environmental textures - if outdoors show terrain material (rock, sand, ice, vegetation). Moody atmospheric lighting. No text, no UI elements, no characters in extreme foreground. The image should feel like a window into this world."""
 
     try:
         image_gen = OpenAIImageGeneration(api_key=EMERGENT_LLM_KEY)
@@ -2372,9 +2372,9 @@ COIN_PACKAGES = {
 
 SUB_PACKAGES = {
     "s1": {"tier": 1, "name": "Basic", "price": 2.99, "coins": 300, "bonus": 0, "eras": []},
-    "s2": {"tier": 2, "name": "Republic", "price": 5.99, "coins": 500, "bonus": 100, "eras": ["New Republic Era"]},
-    "s3": {"tier": 3, "name": "Sith", "price": 9.99, "coins": 800, "bonus": 200, "eras": ["New Republic Era", "Sith Era"]},
-    "s4": {"tier": 4, "name": "Mandalorian", "price": 14.99, "coins": 1200, "bonus": 400, "eras": ["New Republic Era", "Sith Era", "Mandalorian Era"]},
+    "s2": {"tier": 2, "name": "Republic", "price": 5.99, "coins": 500, "bonus": 100, "eras": ["Neo-Concordat Era"]},
+    "s3": {"tier": 3, "name": "Vrakxul", "price": 9.99, "coins": 800, "bonus": 200, "eras": ["Neo-Concordat Era", "Vrakxul Era"]},
+    "s4": {"tier": 4, "name": "Vorthak", "price": 14.99, "coins": 1200, "bonus": 400, "eras": ["Neo-Concordat Era", "Vrakxul Era", "Vorthak Era"]},
 }
 
 @api_router.post("/payments/checkout")
@@ -2490,7 +2490,7 @@ async def get_payment_status(checkout_session_id: str, request: Request):
 
                 if pkg_type == "subscription":
                     tier = int(metadata.get("tier", "0"))
-                    eras = ["Order 66 - Fall of the Republic"]
+                    eras = ["Vex Directive 66 - Fall of the Republic"]
                     sub = SUB_PACKAGES.get(metadata.get("package_id", ""))
                     if sub:
                         eras.extend(sub.get("eras", []))
@@ -2541,7 +2541,7 @@ async def stripe_webhook(request: Request):
                 update_ops: Dict[str, Any] = {"$inc": {"coins": coins_to_add}}
                 if metadata.get("package_type") == "subscription":
                     tier = int(metadata.get("tier", "0"))
-                    eras = ["Order 66 - Fall of the Republic"]
+                    eras = ["Vex Directive 66 - Fall of the Republic"]
                     sub = SUB_PACKAGES.get(metadata.get("package_id", ""))
                     if sub:
                         eras.extend(sub.get("eras", []))
@@ -2588,7 +2588,7 @@ async def export_story(session_id: str, request: Request):
     char_career = character.get("career", "") if character else ""
     location = session.get("current_location", "the galaxy")
 
-    header = f"═══════════════════════════════════\n✦ BEYOND THE STARS ✦\nA Star Wars Text RPG Powered by AI\n═══════════════════════════════════\n\nThe Story of {char_name}\n{char_species} {char_career} • {location}\n\n───────────────────────────────────\n"
+    header = f"═══════════════════════════════════\n✦ BEYOND THE STARS ✦\nA Galactic Text RPG Powered by AI\n═══════════════════════════════════\n\nThe Story of {char_name}\n{char_species} {char_career} • {location}\n\n───────────────────────────────────\n"
     footer = f"\n───────────────────────────────────\n\n✦ BEYOND THE STARS ✦\nCreate your own legend at beyondthestars.app\n═══════════════════════════════════"
 
     full_story = header + continuous_story + footer
@@ -2617,7 +2617,7 @@ async def export_character_card(character_id: str, request: Request):
 
     card_text = f"""═══════════════════════════════════
 ✦ BEYOND THE STARS ✦
-A Star Wars Text RPG Powered by AI
+A Galactic Text RPG Powered by AI
 ═══════════════════════════════════
 
 ▸ {character['name']}
@@ -2653,7 +2653,7 @@ A Star Wars Text RPG Powered by AI
 
 @api_router.get("/")
 async def root():
-    return {"message": "Beyond the Stars: Star Wars Text RPG API", "version": "3.0.0"}
+    return {"message": "Beyond the Stars: Galactic Text RPG API", "version": "3.0.0"}
 
 app.include_router(api_router)
 
