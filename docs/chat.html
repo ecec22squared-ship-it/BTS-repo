@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Chat and share your Beyond the Stars adventures with travelers across the galaxy." />
+  <meta name="theme-color" content="#0a0a0f" />
+  <title>Chat &amp; Share — Beyond the Stars</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" type="image/png" href="icon.png" />
+</head>
+<body>
+  <div class="stars" aria-hidden="true"></div>
+  <div class="stars stars-mid" aria-hidden="true"></div>
+  <div class="stars stars-far" aria-hidden="true"></div>
+
+  <header class="nav">
+    <a class="brand" href="index.html">
+      <img src="icon.png" alt="Beyond the Stars" />
+      <span>Beyond the Stars</span>
+    </a>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="index.html#features">Features</a>
+      <a href="chat.html" class="active">Chat &amp; Share</a>
+      <a href="index.html#community">Community</a>
+    </nav>
+  </header>
+
+  <section class="hero hero-sub">
+    <div class="hero-glyph" aria-hidden="true">✷ ✦ ✴</div>
+    <h1 class="hero-title">
+      <span class="alien-script" aria-hidden="true">&lt;&lt;¶~ΦƔΛ~¶&gt;&gt;</span>
+      <span>HOLO-COMM CHAMBER</span>
+    </h1>
+    <p class="tagline">Share your saga. Find your crew.</p>
+    <p class="sub-tagline">
+      Every character you forge, every scene the Game Master writes for you — it's yours to keep,
+      share, and remix. This is where travelers gather.
+    </p>
+  </section>
+
+  <!-- Share section -->
+  <section id="share" class="panel">
+    <div class="panel-head">
+      <span class="eyebrow">⟨ EXPORT &middot; REMIX &middot; SHARE ⟩</span>
+      <h2>Share Your Adventure</h2>
+      <p class="lead">
+        Beyond the Stars ships with one-tap export for your characters and complete story arcs.
+        Every shared piece of content carries the <em>Beyond the Stars</em> watermark — so the
+        galaxy always knows where the legend started.
+      </p>
+    </div>
+
+    <div class="feature-grid">
+      <div class="feature">
+        <div class="feature-icon">⭢</div>
+        <h3>Share the App</h3>
+        <p>Invite a friend. They get their first 500 credits and the same fresh universe. No referral spam, just word-of-mouth.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">♢</div>
+        <h3>Share a Character</h3>
+        <p>Your character card — name, species, career, stats, signature move — exported as a single image for socials.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">☠</div>
+        <h3>Share a Story</h3>
+        <p>Export an entire adventure as a clean narrative for blogs, fanfic, or bragging on the Discord #saga-logs channel.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Chat with travelers -->
+  <section id="chat" class="panel chat-panel">
+    <div class="panel-head">
+      <span class="eyebrow">⟨ REAL-TIME &middot; TRAVELERS ONLINE ⟩</span>
+      <h2>Chat With Fellow Travelers</h2>
+      <p class="lead">
+        Our Discord is open, friendly, and full of lore-heads, roleplayers, and a surprisingly high
+        number of professional writers. Drop in for trade talk, character art, or the never-ending
+        argument about which era is hardest.
+      </p>
+    </div>
+
+    <div class="chat-mock" role="group" aria-label="Example community chatter">
+      <div class="chat-msg">
+        <div class="chat-avatar" style="background:linear-gradient(135deg,#5EC8FF,#2a50c2)">K</div>
+        <div class="chat-body">
+          <div class="chat-name">Kyrix-Vhandir <span class="chat-tag">◆ Pilot · Xeel'thara</span></div>
+          <p>Finally got the freighter off Bay 94. Mazhara took a cut but we made it out clean. Anyone else running Dominion blockade routes tonight?</p>
+        </div>
+      </div>
+      <div class="chat-msg">
+        <div class="chat-avatar" style="background:linear-gradient(135deg,#FFD700,#cf7a00)">V</div>
+        <div class="chat-body">
+          <div class="chat-name">Voidscribe <span class="chat-tag">◆ Qyrith · Lv 4</span></div>
+          <p>Just had a Despair symbol trigger mid-duel. My kyrix sabre jammed, the ceiling collapsed, and now I owe a Vzorg crime lord a favour. Best roll I've ever lost.</p>
+        </div>
+      </div>
+      <div class="chat-msg">
+        <div class="chat-avatar" style="background:linear-gradient(135deg,#C89BFF,#5a2c9a)">E</div>
+        <div class="chat-body">
+          <div class="chat-name">Elder Qyr'vhan <span class="chat-tag">◆ GM help</span></div>
+          <p>Tip: when the AI stalls on a scene, include a sensory cue in your response ("the ventilator smells of ozone") — it gives the GM something to riff on and the next scene comes alive.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="cta-row cta-row-centered">
+      <a class="cta cta-primary" href="https://discord.gg/cmV4PMvW2" target="_blank" rel="noopener">
+        Join Discord →
+      </a>
+    </div>
+  </section>
+
+  <!-- Contact & Support -->
+  <section id="contact" class="panel">
+    <div class="panel-head">
+      <span class="eyebrow">⟨ REACH OUT &middot; WE ANSWER ⟩</span>
+      <h2>Support &amp; Contact</h2>
+    </div>
+
+    <div class="community-grid">
+      <a class="community-card discord" href="https://discord.gg/cmV4PMvW2" target="_blank" rel="noopener">
+        <div class="cc-icon"></div>
+        <h3>Live Support on Discord</h3>
+        <p>Fastest response. EC² staff monitors the <em>#support</em> channel daily.</p>
+        <span class="arrow">→</span>
+      </a>
+      <a class="community-card support" href="mailto:universal4050@gmail.com?subject=Beyond%20the%20Stars%20—%20Support%20request">
+        <div class="cc-icon">✉</div>
+        <h3>Email Us</h3>
+        <p>universal4050@gmail.com — response within 48 hours, often faster.</p>
+        <span class="arrow">→</span>
+      </a>
+      <a class="community-card instagram" href="https://www.instagram.com/neutrano13?igsh=ZXdreHZrcnZzbHVw" target="_blank" rel="noopener">
+        <div class="cc-icon">◖</div>
+        <h3>DM on Instagram</h3>
+        <p>@neutrano13 — casual conversations, fan-art submissions, behind-the-scenes.</p>
+        <span class="arrow">→</span>
+      </a>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <img src="icon.png" alt="EC²" width="42" height="42" />
+        <div>
+          <p class="footer-title">Beyond the Stars</p>
+          <p class="footer-sub">Published by EC² · © 2026 · All rights reserved</p>
+        </div>
+      </div>
+      <div class="footer-links">
+        <a href="privacy-policy.html">Privacy Policy</a>
+        <a href="index.html">Home</a>
+        <a href="https://discord.gg/cmV4PMvW2" target="_blank" rel="noopener">Discord</a>
+        <a href="mailto:universal4050@gmail.com">Contact</a>
+      </div>
+      <p class="footer-disclaimer">
+        Beyond the Stars is a work of fiction. For entertainment and amusement, not for any treatment,
+        diagnosis, investment, or advertisement. This Game is not Endorsed, Supported, or Affiliated
+        with Star Wars or any associated company.
+      </p>
+    </div>
+  </footer>
+</body>
+</html>
