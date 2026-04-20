@@ -17,7 +17,7 @@
       "buildNumber": "1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
       "android": {
         "package": "com.ecsquared.beyondthestars"
       }
