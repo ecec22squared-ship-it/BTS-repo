@@ -17,13 +17,14 @@
       "buildNumber": "1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
-      },
+      }
+    },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#0a0a0f"
       },
-      "edgeToEdgeEnabled": true,"package": "com.ecsquared.beyondthestars",
+      "edgeToEdgeEnabled": true,
       "package": "com.ecsquared.beyondthestars",
       "versionCode": 1,
       "permissions": [
@@ -53,12 +54,11 @@
     },
     "extra": {
       "eas": {
-      "projectId": "ff6fa9e8-b967-4307-aee6-099524b4eb72"
+        "projectId": "ff6fa9e8-b967-4307-aee6-099524b4eb72"
       },
       "publisher": "EC\u00b2",
       "supportEmail": "ecec22squared@gmail.com",
       "supportUrl": "https://discord.gg/cmV4PMvW2"
     }
   }
-}
 }
