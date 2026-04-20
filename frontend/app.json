@@ -18,6 +18,9 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
+      "android": {
+        "package": "com.ecsquared.beyondthestars"
+      }
     },
     "anservitor": {
       "adaptiveIcon": {
