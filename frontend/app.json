@@ -10,7 +10,7 @@
     "newArchEnabled": true,
     "description": "Live your adventure. An AI Game Master narrates your personal galactic RPG saga, powered by the Edge-of-the-Empire dice engine and a procedural immersion environment.",
     "primaryColor": "#FFD700",
-    "owner": "ecsquared",
+    "owner": "ec-squared-gaming",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.ecsquared.beyondthestars",
