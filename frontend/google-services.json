@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "81238382322",
+    "project_id": "beyond-the-stars-4a570",
+    "storage_bucket": "beyond-the-stars-4a570.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:81238382322:android:6de9c6ab0cb42bf051626b",
+        "android_client_info": {
+          "package_name": "com.ecsquaredgaming.beyondthestars"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCirclfbeqfYdkYygRZc4ReFgazGDi2RPo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
