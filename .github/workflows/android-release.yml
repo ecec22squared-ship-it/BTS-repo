@@ -92,37 +92,51 @@ jobs:
           node <<'NODE'
           const fs = require('fs');
           const path = 'android/app/build.gradle';
-          let g = fs.readFileSync(path, 'utf8');
+          const before = fs.readFileSync(path, 'utf8');
 
-          // 1) Add a release block to signingConfigs (after the debug block)
-          //    Only inject if no release block exists yet
-          const hasReleaseSigning = /signingConfigs\s*\{[\s\S]*?release\s*\{/.test(g);
-          if (!hasReleaseSigning) {
-            g = g.replace(
-              /(signingConfigs\s*\{\s*debug\s*\{[\s\S]*?\}\s*)/,
-              `$1
+          // 1) Inject a release signingConfig right AFTER the debug block's closing brace,
+          //    so it lives inside the signingConfigs { } container.
+          let g = before.replace(
+            /(signingConfigs\s*\{[\s\S]*?debug\s*\{[\s\S]*?\n\s*\})/,
+            `$1
               release {
                   storeFile file(System.getenv("BTS_KEYSTORE_PATH"))
                   storePassword System.getenv("BTS_KEYSTORE_PASSWORD")
                   keyAlias System.getenv("BTS_KEY_ALIAS")
                   keyPassword System.getenv("BTS_KEY_PASSWORD")
-              }
-          `
-            );
+              }`
+          );
+          if (g === before) {
+            console.error('ERROR: failed to inject release signingConfig (regex did not match)');
+            console.error('--- current build.gradle (first 3 KB) ---');
+            console.error(before.slice(0, 3072));
+            process.exit(1);
           }
 
           // 2) Point the release buildType at signingConfigs.release
+          const step2 = g;
           g = g.replace(
             /(buildTypes\s*\{[\s\S]*?release\s*\{[\s\S]*?signingConfig\s+)signingConfigs\.debug/,
             '$1signingConfigs.release'
           );
+          if (g === step2) {
+            console.error('ERROR: failed to rewire buildTypes.release.signingConfig');
+            process.exit(1);
+          }
 
           fs.writeFileSync(path, g);
           console.log('--- Patched android/app/build.gradle ---');
-          const sig = g.match(/signingConfigs\s*\{[\s\S]*?\n\s{4}\}/);
-          if (sig) console.log(sig[0]);
-          const rel = g.match(/release\s*\{[\s\S]*?signingConfig\s+signingConfigs\.\w+/);
-          if (rel) console.log(rel[0]);
+          // Verify both pieces landed
+          const sigBlock = g.match(/signingConfigs\s*\{[\s\S]*?\n\s{0,4}\}/);
+          if (sigBlock) {
+            console.log('[signingConfigs block]');
+            console.log(sigBlock[0]);
+          }
+          const relBlock = g.match(/buildTypes\s*\{[\s\S]*?release\s*\{[\s\S]*?signingConfig\s+signingConfigs\.\w+/);
+          if (relBlock) {
+            console.log('[buildTypes.release.signingConfig]');
+            console.log(relBlock[0].split('\n').slice(-3).join('\n'));
+          }
           NODE
 
       - name: Cache Gradle
