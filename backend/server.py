@@ -4,13 +4,14 @@ from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
+import re
+import asyncio
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timezone, timedelta
-import httpx
 import random
 import base64
 import json
@@ -30,6 +31,56 @@ db = client[os.environ['DB_NAME']]
 
 # API Key
 EMERGENT_LLM_KEY = os.getenv('EMERGENT_LLM_KEY')
+
+# ============================================================================
+# Firebase Admin SDK initialization (Google OAuth token verification)
+# ============================================================================
+import firebase_admin
+from firebase_admin import credentials as _fb_credentials, auth as _fb_auth
+
+FIREBASE_PROJECT_ID = os.getenv("FIREBASE_PROJECT_ID")
+ANDROID_PACKAGE_NAME = os.getenv("ANDROID_PACKAGE_NAME")
+_FIREBASE_CRED_RAW = os.getenv("FIREBASE_CREDENTIALS_JSON")
+
+_firebase_app = None
+if _FIREBASE_CRED_RAW and FIREBASE_PROJECT_ID:
+    try:
+        # Avoid double-init across uvicorn auto-reload
+        try:
+            _firebase_app = firebase_admin.get_app()
+        except ValueError:
+            _cred_dict = json.loads(_FIREBASE_CRED_RAW)
+            _cred = _fb_credentials.Certificate(_cred_dict)
+            _firebase_app = firebase_admin.initialize_app(
+                _cred, {"projectId": FIREBASE_PROJECT_ID}
+            )
+        logging.info(f"Firebase Admin initialized for project {FIREBASE_PROJECT_ID}")
+    except Exception as _fb_err:
+        logging.error(f"Firebase Admin init failed: {_fb_err}")
+        _firebase_app = None
+else:
+    logging.warning("Firebase env vars missing — /api/auth/firebase will return 503")
+
+
+def verify_firebase_id_token(id_token: str) -> dict:
+    """Verify a Firebase ID token (issued by the mobile/web Firebase Auth SDK).
+    Returns the decoded claims dict on success; raises HTTPException(401) on failure.
+    """
+    if not _firebase_app:
+        raise HTTPException(status_code=503, detail="Firebase Auth not configured on server")
+    try:
+        decoded = _fb_auth.verify_id_token(id_token, check_revoked=False)
+        return decoded
+    except _fb_auth.ExpiredIdTokenError:
+        raise HTTPException(status_code=401, detail="Firebase ID token expired")
+    except _fb_auth.RevokedIdTokenError:
+        raise HTTPException(status_code=401, detail="Firebase ID token revoked")
+    except _fb_auth.InvalidIdTokenError as e:
+        raise HTTPException(status_code=401, detail=f"Invalid Firebase ID token: {e}")
+    except Exception as e:
+        logging.warning(f"Firebase ID token verification failed: {e}")
+        raise HTTPException(status_code=401, detail="Could not verify Firebase ID token")
+
 
 # Create the main app without a prefix
 app = FastAPI(title="Galactic: Edge of the Dominion RPG")
@@ -1290,6 +1341,268 @@ async def get_current_user(request: Request) -> Optional[UserBase]:
 REVIEWER_EMAIL = "ecec22squared@gmail.com"
 
 
+# =========================================================================
+# COPYRIGHT SANITIZATION LAYER
+# Two-layer IP-protection for narrative AI output. Run on every LLM
+# response before it reaches the client to prevent Play Store / App Store
+# takedowns.
+# =========================================================================
+
+# Layer A — hard blocklist. Word-boundary, case-insensitive.
+# Order matters: longer / more specific phrases first so a short term doesn't
+# mask a longer one (e.g. "Death Star" before "star").
+_IP_BLOCKLIST_RAW = [
+    # ----- Star Wars -----
+    (r"Death\s*Star", "Worldbreaker Station"),
+    (r"Millennium\s*Falcon", "Vagrant Zephyr"),
+    (r"X[- ]wing(s)?", "Vee-fighter"),
+    (r"TIE\s*fighter(s)?", "Imperial drone"),
+    (r"Star\s*Destroyer(s)?", "Void Destroyer"),
+    (r"Han\s*Solo", "the rogue smuggler"),
+    (r"Luke\s*Skywalker", "the young apprentice"),
+    (r"Princess\s*Leia", "the noble envoy"),
+    (r"Darth\s*Vader", "the masked enforcer"),
+    (r"Darth\s*\w+", "the Voidwalker adept"),
+    (r"Obi[- ]?Wan(\s*Kenobi)?", "the elder mentor"),
+    (r"Yoda", "the wise old master"),
+    (r"Chewbacca", "the loyal beastfolk"),
+    (r"Jabba\s*the\s*Hutt", "the bloated crime lord"),
+    (r"Jabba", "the crime lord"),
+    (r"Kenobi", "the elder mentor"),
+    (r"Skywalker", "the apprentice"),
+    (r"Palpatine", "the Supreme Regent"),
+    (r"Vader", "the masked enforcer"),
+    (r"Leia", "the envoy"),
+    (r"Mandalorian(s)?", "Iron Brotherhood"),
+    (r"Stormtrooper(s)?", "Imperial Sentinel"),
+    (r"Wookiee(s)?", "Korroth"),
+    (r"Twi'?lek(s)?", "tendril-folk"),
+    (r"Rodian(s)?", "Qrin'dex"),
+    (r"Kaminoan(s)?", "Tideborn"),
+    (r"Tatooine", "Sandhold"),
+    (r"Coruscant", "Centerworld"),
+    (r"Kashyyyk", "Ky'rrahsh"),
+    (r"Naboo", "Nebora"),
+    (r"Hoth", "Vhothar"),
+    (r"Endor", "Enothral"),
+    (r"Dagobah", "Dagrathul"),
+    (r"Alderaan", "Aldoran"),
+    (r"Order\s*66", "Vex Directive 66"),
+    (r"Clone\s*Wars", "Replicant Wars"),
+    (r"Galactic\s*Empire", "Galactic Dominion"),
+    (r"New\s*Republic", "Neo-Concordat"),
+    (r"Old\s*Republic", "Elder Concordat"),
+    (r"Edge\s*of\s*the\s*Empire", "Edge of the Dominion"),
+    (r"Light[- ]?saber(s)?", "Beam-sword"),
+    (r"Plasmablade(s)?", "Beam-sword"),
+    (r"Saberstaff", "Beam-staff"),
+    (r"the\s+Force(?=\W|$)", "the Aether"),
+    (r"force[- ]sensitive", "aether-sensitive"),
+    (r"Jedi(?:\s+Council|\s+Order|\s+Knight|\s+Master|\s+Temple)?", "Lightcaster Conclave"),
+    (r"\bJedi\b", "Lightcaster"),
+    (r"\bSith\b", "Voidwalker"),
+    (r"Star\s*Wars", "Galactic"),
+
+    # ----- Star Trek -----
+    (r"Klingon(s)?", "Krathari"),
+    (r"Vulcan(s)?", "Logari"),
+    (r"\bFederation\b", "Concordat Alliance"),
+    (r"Starfleet", "Stellar Command"),
+    (r"Enterprise(?=\s|$|[.,!?])", "the flagship"),
+    (r"warp\s*drive", "fold drive"),
+    (r"phaser(s)?", "pulse emitter"),
+    (r"transporter\s*beam", "fold beam"),
+
+    # ----- Marvel / DC -----
+    (r"Iron\s*Man", "the steelclad"),
+    (r"Spider[- ]?Man", "the web-runner"),
+    (r"Batman", "the night vigilante"),
+    (r"Superman", "the steel sentinel"),
+    (r"Wonder\s*Woman", "the warrior princess"),
+    (r"Captain\s*America", "the patriot soldier"),
+    (r"Avengers", "the Vanguard"),
+    (r"Justice\s*League", "the Sentinel League"),
+    (r"X[- ]?Men", "the Mutant Order"),
+    (r"\bHulk\b", "the green titan"),
+    (r"\bThor\b", "the storm warrior"),
+    (r"Wolverine", "the clawed berserker"),
+    (r"Wakanda", "Vakranda"),
+
+    # ----- Lord of the Rings / Tolkien -----
+    (r"Hobbit(s)?", "halfling"),
+    (r"Gandalf", "the grey wanderer"),
+    (r"Frodo", "the ringbearer"),
+    (r"Mordor", "the Shadowlands"),
+    (r"\bShire\b", "the Greenmark"),
+    (r"One\s*Ring", "the Sovereign Ring"),
+    (r"Middle[- ]earth", "Midrealm"),
+    (r"\borc(s)?\b", "ravager"),
+    (r"Sauron", "the Dark One"),
+
+    # ----- Harry Potter -----
+    (r"Hogwarts", "Sablecrest Academy"),
+    (r"Muggle(s)?", "the Unsung"),
+    (r"Quidditch", "skybroom"),
+    (r"Voldemort", "the Nameless"),
+    (r"Hermione", "the bright apprentice"),
+    (r"Dumbledore", "the elder headmaster"),
+
+    # ----- Dune -----
+    (r"\bArrakis\b", "the Spice Reaches"),
+    (r"sandworm(s)?", "dunewyrm"),
+    (r"Bene\s*Gesserit", "the Veiled Sisterhood"),
+    (r"Fremen", "Sandfolk"),
+    (r"Kwisatz\s*Haderach", "the Bridge-Walker"),
+    (r"melange", "stardust"),
+
+    # ----- Warhammer 40k -----
+    (r"Space\s*Marine(s)?", "Iron Legion soldier"),
+    (r"Bolter(s)?", "kinetic carbine"),
+    (r"Tyranid(s)?", "Hive-spawn"),
+    (r"Necron(s)?", "Tomb-walker"),
+    (r"\bEldar\b", "Ancient-kin"),
+    (r"Adeptus\s*\w+", "the Iron Order"),
+    (r"Imperium\s*of\s*Man", "Imperium of Sol"),
+
+    # ----- Misc franchises -----
+    (r"Pok[ée]mon", "creature companion"),
+    (r"Digimon", "data beast"),
+    (r"Gundam(s)?", "mech frame"),
+    (r"Transformer(s)?", "shapeshifting machine"),
+    (r"Voltron", "the unified colossus"),
+    (r"Power\s*Ranger(s)?", "Spectrum Guardian"),
+    (r"He[- ]?Man", "the swordsman of power"),
+    (r"Master\s*of\s*the\s*Universe", "lord of realms"),
+
+    # ----- Specific copyrighted addiction-context drug -----
+    (r"\bspice\s+(addiction|addict|melange)\b", "stardust dependency"),
+]
+_IP_PATTERNS = [(re.compile(p, re.IGNORECASE), r) for p, r in _IP_BLOCKLIST_RAW]
+
+# Layer B — second-layer LLM review. Enabled by default (per product spec)
+# to ensure every message is screened for paraphrased / aliased IP terms
+# the regex blocklist couldn't catch. Flip IP_FILTER_LLM_REVIEW=0 to disable
+# (e.g. during cost-sensitive load tests).
+_IP_LLM_REVIEW_ENABLED = os.getenv("IP_FILTER_LLM_REVIEW", "1").strip() in ("1", "true", "yes")
+
+IP_COMPLIANCE_RULES = """
+
+IMPORTANT — IP RULES: Never use proper nouns from existing copyrighted franchises (Star Wars, Star Trek, Marvel, DC, LOTR, Harry Potter, Dune, Warhammer, anime, video games). All character names, planets, factions, technologies must be original or use generic terms (alien, droid, blaster, empire). The setting is the Beyond the Stars universe with three eras: Neo-Concordat, Vrakxul, and Vorthak. Stay in-universe."""
+
+
+async def _log_filter(replacements: list, context: str, user_id: Optional[str], original: str, sanitized: str):
+    """Fire-and-forget logger of every regex replacement."""
+    try:
+        await db.copyright_filter_log.insert_one({
+            "log_id": f"ipf_{uuid.uuid4().hex[:12]}",
+            "timestamp": datetime.now(timezone.utc),
+            "user_id": user_id,
+            "context": context,
+            "replacements": replacements,
+            "original_excerpt": original[:500],
+            "sanitized_excerpt": sanitized[:500],
+        })
+    except Exception as e:
+        logging.warning(f"copyright_filter_log insert failed: {e}")
+
+
+async def _llm_ip_review(text: str) -> str:
+    """Run a fast Gemini-flash pass to catch paraphrases the regex missed."""
+    try:
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"ipfilter_{uuid.uuid4().hex[:6]}",
+            system_message=(
+                "You are a copyright compliance reviewer. The text below is a "
+                "narrative for a sci-fi space RPG. Identify and replace ANY "
+                "proper nouns, character names, locations, organizations, "
+                "technologies, or terms that originate from copyrighted IP "
+                "(Star Wars, Star Trek, Marvel, DC, Tolkien, Harry Potter, Dune, "
+                "Warhammer, anime franchises, video game IPs, etc.) with "
+                "original alternatives that fit the established Beyond the Stars "
+                "universe (Neo-Concordat, Vrakxul, Vorthak eras). If a term is "
+                "generic / public-domain (e.g., spaceship, blaster, alien, "
+                "planet, galaxy, empire, rebellion), keep it. Return ONLY the "
+                "cleaned text with no commentary, no preamble, no explanation."
+            ),
+        ).with_model("gemini", "gemini-2.0-flash")
+        cleaned = await chat.send_message(UserMessage(text=text))
+        return cleaned if cleaned and len(cleaned) > 0 else text
+    except Exception as e:
+        logging.warning(f"LLM IP review failed (non-fatal): {e}")
+        return text
+
+
+async def sanitize_narrative(
+    text: str,
+    *,
+    context: str = "story_response",
+    user_id: Optional[str] = None,
+    do_llm_review: Optional[bool] = None,
+) -> str:
+    """Two-layer copyright sanitizer. Returns cleaned text. Idempotent.
+
+    context examples: 'story_response', 'character_gen', 'scenario_gen',
+                      'image_prompt', 'opening_scene'
+    """
+    if not isinstance(text, str) or not text.strip():
+        return text or ""
+
+    cleaned = text
+    replacements: list = []
+    for pattern, replacement in _IP_PATTERNS:
+        matches = list(pattern.finditer(cleaned))
+        if matches:
+            for m in matches:
+                replacements.append({
+                    "original_substring": m.group(0),
+                    "replaced_with": replacement,
+                })
+            cleaned = pattern.sub(replacement, cleaned)
+
+    # Optional Layer B
+    use_llm = _IP_LLM_REVIEW_ENABLED if do_llm_review is None else bool(do_llm_review)
+    if use_llm:
+        cleaned = await _llm_ip_review(cleaned)
+
+    if replacements:
+        # Fire-and-forget log; don't block the response on logging
+        asyncio.create_task(_log_filter(replacements, context, user_id, text, cleaned))
+
+    return cleaned
+
+
+# Admin-callable test endpoint -------------------------------------------------
+class _SanitizerTestBody(BaseModel):
+    text: str
+    do_llm_review: Optional[bool] = False
+
+
+@api_router.post("/admin/test-sanitizer")
+async def admin_test_sanitizer(body: _SanitizerTestBody, request: Request):
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    # Open to any authenticated user — the endpoint only echoes the cleaned
+    # version of the input text and never reveals other users' data.
+    cleaned = await sanitize_narrative(
+        body.text, context="admin_test", user_id=user.user_id, do_llm_review=body.do_llm_review
+    )
+    # Re-derive replacement list for the response (pure regex pass for clarity)
+    replacements = []
+    scratch = body.text
+    for pattern, replacement in _IP_PATTERNS:
+        for m in pattern.finditer(scratch):
+            replacements.append({"original": m.group(0), "replaced_with": replacement})
+        scratch = pattern.sub(replacement, scratch)
+    return {
+        "original": body.text,
+        "sanitized": cleaned,
+        "replacements": replacements,
+        "llm_review_used": bool(body.do_llm_review and _IP_LLM_REVIEW_ENABLED) or bool(body.do_llm_review),
+    }
+
+
 async def seed_reviewer_account(user_id: str):
     """Idempotent seed for app-store reviewers.
     Gives the reviewer: 500 coins, 1 character, 1 in-progress game session labeled
@@ -1408,43 +1721,106 @@ async def seed_reviewer_endpoint(request: Request):
 
 
 # -----------------------------------------------------------------------------
+# Legacy /api/auth/session (Emergent OAuth via demobackend.emergentagent.com)
+# was REMOVED on the Firebase Auth migration. All clients now POST to
+# /api/auth/firebase with a Firebase ID token. If you need to support an
+# in-flight legacy session, restore from git history.
+# -----------------------------------------------------------------------------
 
-@api_router.post("/auth/session")
-async def create_session(request: Request, response: Response):
-    body = await request.json()
-    session_id = body.get("session_id")
-    if not session_id:
-        raise HTTPException(status_code=400, detail="session_id is required")
-    async with httpx.AsyncClient() as http_client:
-        auth_response = await http_client.get(
-            "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
-            headers={"X-Session-ID": session_id}
-        )
-        if auth_response.status_code != 200:
-            raise HTTPException(status_code=401, detail="Invalid session_id")
-        user_data = auth_response.json()
-    existing_user = await db.users.find_one({"email": user_data["email"]}, {"_id": 0})
+
+# ----------------------------------------------------------------------------
+# Firebase Auth — Google OAuth verification (replaces auth.emergentagent.com)
+# ----------------------------------------------------------------------------
+class _FirebaseAuthBody(BaseModel):
+    id_token: str
+
+
+@api_router.post("/auth/firebase")
+async def auth_firebase(body: _FirebaseAuthBody, response: Response):
+    """Verify a Firebase ID token (issued by Google Sign-In via Firebase Auth
+    on the mobile/web client) and create a backend session.
+
+    Flow:
+      mobile  -> google sign-in (firebase) -> id_token
+      mobile  -> POST /api/auth/firebase {id_token}
+      backend -> firebase_admin.verify_id_token(id_token)
+              -> upsert user, create session_token, set cookie, return user
+    """
+    decoded = verify_firebase_id_token(body.id_token)
+
+    email = (decoded.get("email") or "").lower()
+    if not email:
+        # Some Google accounts may not surface email (very rare). Fall back to UID.
+        email = f"{decoded.get('uid') or decoded.get('user_id')}@firebaseuser.local"
+
+    name = decoded.get("name") or decoded.get("email") or "Adventurer"
+    picture = decoded.get("picture")
+    firebase_uid = decoded.get("uid") or decoded.get("user_id")
+    email_verified = bool(decoded.get("email_verified", True))
+
+    existing_user = await db.users.find_one({"email": email}, {"_id": 0})
     if existing_user:
         user_id = existing_user["user_id"]
-        await db.users.update_one({"user_id": user_id}, {"$set": {"name": user_data["name"], "picture": user_data.get("picture")}})
+        await db.users.update_one(
+            {"user_id": user_id},
+            {"$set": {
+                "name": name,
+                "picture": picture,
+                "firebase_uid": firebase_uid,
+                "email_verified": email_verified,
+            }}
+        )
     else:
         user_id = f"user_{uuid.uuid4().hex[:12]}"
-        await db.users.insert_one({"user_id": user_id, "email": user_data["email"], "name": user_data["name"], "picture": user_data.get("picture"), "coins": 500, "subscription_tier": 0, "unlocked_eras": ["Vex Directive 66 - Fall of the Concordat"], "created_at": datetime.now(timezone.utc)})
+        await db.users.insert_one({
+            "user_id": user_id,
+            "email": email,
+            "name": name,
+            "picture": picture,
+            "firebase_uid": firebase_uid,
+            "email_verified": email_verified,
+            "coins": 500,
+            "subscription_tier": 0,
+            "unlocked_eras": ["Vex Directive 66 - Fall of the Concordat"],
+            "created_at": datetime.now(timezone.utc),
+        })
 
-    # --- Reviewer auto-seed: app store reviewer account gets a ready-to-play state ---
-    if user_data["email"].lower() == REVIEWER_EMAIL:
+    # --- Reviewer auto-seed for app-store reviewers ---
+    if email == REVIEWER_EMAIL:
         try:
             await seed_reviewer_account(user_id)
         except Exception as e:
             logging.warning(f"Reviewer seed failed (non-fatal): {e}")
 
-    session_token = user_data.get("session_token", f"sess_{uuid.uuid4().hex}")
+    session_token = f"sess_{uuid.uuid4().hex}"
     expires_at = datetime.now(timezone.utc) + timedelta(days=7)
     await db.user_sessions.delete_many({"user_id": user_id})
-    await db.user_sessions.insert_one({"session_token": session_token, "user_id": user_id, "expires_at": expires_at, "created_at": datetime.now(timezone.utc)})
-    response.set_cookie(key="session_token", value=session_token, path="/", secure=True, httponly=True, samesite="none", expires=expires_at)
+    await db.user_sessions.insert_one({
+        "session_token": session_token,
+        "user_id": user_id,
+        "expires_at": expires_at,
+        "created_at": datetime.now(timezone.utc),
+        "auth_provider": "firebase",
+        "firebase_uid": firebase_uid,
+    })
+    response.set_cookie(
+        key="session_token", value=session_token, path="/",
+        secure=True, httponly=True, samesite="none", expires=expires_at,
+    )
+
     user_doc = await db.users.find_one({"user_id": user_id}, {"_id": 0})
-    return {"user": user_doc, "session_token": session_token}
+    return {"user": user_doc, "session_token": session_token, "auth_provider": "firebase"}
+
+
+@api_router.get("/auth/firebase/status")
+async def auth_firebase_status():
+    """Lightweight readiness probe so the mobile client can verify the
+    backend is wired up to Firebase before attempting sign-in."""
+    return {
+        "configured": bool(_firebase_app),
+        "project_id": FIREBASE_PROJECT_ID if _firebase_app else None,
+        "android_package_name": ANDROID_PACKAGE_NAME if _firebase_app else None,
+    }
 
 @api_router.get("/auth/me")
 async def get_me(request: Request):
@@ -1675,6 +2051,11 @@ EQUIPMENT & ATTIRE:
 
 ARTISTIC DIRECTION: Portrait framing (head to mid-chest), The Rim setting background blur, cinematic color grading, Galactic concept art quality. The character should feel lived-in and authentic to the galaxy's edge - not pristine, but real. Dramatic side-lighting with environmental color spill."""
 
+    # Sanitize prompt — regex-only pass to keep image gen latency unchanged
+    prompt = await sanitize_narrative(
+        prompt, context="image_prompt_portrait", user_id=user.user_id, do_llm_review=False
+    )
+
     try:
         image_gen = OpenAIImageGeneration(api_key=EMERGENT_LLM_KEY)
         images = await image_gen.generate_images(prompt=prompt, model="gpt-image-1", number_of_images=1)
@@ -1852,13 +2233,13 @@ Respond ONLY with a valid JSON array of 7 objects. Each object must have:
 - "danger_level": 1-5 (1=low stakes, 5=extremely dangerous)
 
 Example format: [{{"title":"...", "type":"combat", "description":"...", "location":"...", "danger_level":3}}]
-Return ONLY the JSON array, no other text."""
+Return ONLY the JSON array, no other text.{IP_COMPLIANCE_RULES}"""
 
     try:
         chat = LlmChat(
             api_key=EMERGENT_LLM_KEY,
             session_id=f"scenarios_{uuid.uuid4().hex[:8]}",
-            system_message="You are a Galactic scenario designer. Respond ONLY with valid JSON arrays."
+            system_message="You are a Galactic scenario designer. Respond ONLY with valid JSON arrays." + IP_COMPLIANCE_RULES
         ).with_model("anthropic", "claude-4-sonnet-20250514")
 
         result = await chat.send_message(UserMessage(text=prompt))
@@ -1870,10 +2251,18 @@ Return ONLY the JSON array, no other text."""
 
         scenarios = json.loads(result_clean)
 
-        # Assign IDs
+        # Assign IDs and sanitize copyright-bearing text fields
         for i, s in enumerate(scenarios):
             s["scenario_id"] = f"scn_{uuid.uuid4().hex[:8]}"
             s["index"] = i
+            for field in ("title", "description", "location"):
+                if isinstance(s.get(field), str):
+                    s[field] = await sanitize_narrative(
+                        s[field],
+                        context=f"scenario_{field}",
+                        user_id=user.user_id,
+                        do_llm_review=False,  # short fields → regex is enough; saves latency
+                    )
 
         return {"scenarios": scenarios}
 
@@ -2226,7 +2615,7 @@ Keep responses to 2-3 rich paragraphs. End with a visceral, present-tense moment
 
 The player's action: {action.action}
 
-Respond as the Game Master. Make the player feel like they're THERE."""
+Respond as the Game Master. Make the player feel like they're THERE.{IP_COMPLIANCE_RULES}"""
 
     try:
         chat = LlmChat(
@@ -2236,7 +2625,14 @@ Respond as the Game Master. Make the player feel like they're THERE."""
         ).with_model("anthropic", "claude-4-sonnet-20250514")
 
         user_message = UserMessage(text=action.action)
-        gm_response = await chat.send_message(user_message)
+        gm_response_raw = await chat.send_message(user_message)
+
+        # Copyright sanitization layer (Layer A regex + Layer B LLM review)
+        gm_response = await sanitize_narrative(
+            gm_response_raw,
+            context="story_response",
+            user_id=user.user_id,
+        )
 
         # Detect environment change from the narrative
         new_env = detect_environment_from_text(gm_response)
@@ -2393,7 +2789,7 @@ IMMERSION RULES:
 5. End with a visceral, present-tense moment that demands immediate response
 6. NEVER reference dice, game mechanics, or break the fourth wall
 
-Keep it to 3-4 rich paragraphs."""
+Keep it to 3-4 rich paragraphs.{IP_COMPLIANCE_RULES}"""
 
     try:
         chat = LlmChat(
@@ -2403,7 +2799,14 @@ Keep it to 3-4 rich paragraphs."""
         ).with_model("anthropic", "claude-4-sonnet-20250514")
 
         user_message = UserMessage(text="Begin the adventure!")
-        opening = await chat.send_message(user_message)
+        opening_raw = await chat.send_message(user_message)
+
+        # Copyright sanitization layer (Layer A regex + Layer B LLM review)
+        opening = await sanitize_narrative(
+            opening_raw,
+            context="opening_scene",
+            user_id=user.user_id,
+        )
 
         new_history = [{"role": "game_master", "content": opening, "timestamp": datetime.now(timezone.utc).isoformat()}]
         await db.game_sessions.update_one({"session_id": session_id}, {"$set": {"game_history": new_history, "updated_at": datetime.now(timezone.utc)}})
@@ -2469,6 +2872,11 @@ LOCATION: {location}
 {f'STORY CONTEXT: {story_context}' if story_context else ''}
 
 ARTISTIC DIRECTION: Hyper-detailed environment art, cinematic lighting, volumetric atmosphere, Galactic aesthetic. First-person perspective looking into the scene. Rich environmental textures - if outdoors show terrain material (rock, sand, ice, vegetation). Moody atmospheric lighting. No text, no UI elements, no characters in extreme foreground. The image should feel like a window into this world."""
+
+    # Sanitize prompt — regex-only pass for low latency
+    prompt = await sanitize_narrative(
+        prompt, context="image_prompt_scene", user_id=user.user_id, do_llm_review=False
+    )
 
     try:
         image_gen = OpenAIImageGeneration(api_key=EMERGENT_LLM_KEY)

@@ -12,7 +12,16 @@
           "package_name": "com.ecsquaredgaming.beyondthestars"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "81238382322-11lopviucaackjoh3d5kus89hn0ud4ee.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.ecsquaredgaming.beyondthestars",
+            "certificate_hash": "3ca4820ea31fc1e37b48875a064eccc2bb3eacc3"
+          }
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCirclfbeqfYdkYygRZc4ReFgazGDi2RPo"

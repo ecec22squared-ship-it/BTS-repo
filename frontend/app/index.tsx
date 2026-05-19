@@ -14,66 +14,106 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Linking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
+import * as Google from 'expo-auth-session/providers/google';
+import * as AuthSession from 'expo-auth-session';
+import * as Clipboard from 'expo-clipboard';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS } from 'react-native-reanimated';
 import { useAuthStore } from '../src/stores/authStore';
 import { useGameStore } from '../src/stores/gameStore';
+import { exchangeGoogleIdTokenForFirebaseIdToken } from '../src/lib/firebase';
+
+WebBrowser.maybeCompleteAuthSession();
 
 const EXPO_PUBLIC_BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
+const GOOGLE_ANDROID_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || '';
+const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || '';
 
 export default function Index() {
-  const { user, isAuthenticated, isLoading, checkAuth, login, logout } = useAuthStore();
+  const { user, isAuthenticated, isLoading, checkAuth, loginWithFirebase, logout } = useAuthStore();
   const { characters, fetchCharacters, fetchGameData } = useGameStore();
   const [isProcessingAuth, setIsProcessingAuth] = useState(false);
+  const [authErrorDetail, setAuthErrorDetail] = useState<string | null>(null);
+  const [showDebug, setShowDebug] = useState(false);
 
-  // Handle OAuth callback
+  // -------- Firebase + Google Sign-In ----------------------------------
+  // expo-auth-session/providers/google automatically picks the right
+  // client ID per platform:
+  //   • web      → webClientId (Web OAuth client w/ HTTPS redirect URIs registered)
+  //   • Android  → androidClientId (auto-derives redirect URI from package name + SHA-1)
+  //   • iOS      → iosClientId
+  //
+  // On Android we must use the reversed Google Android client ID as the
+  // redirect URI scheme — Google rejects anything else for Android OAuth,
+  // and nothing on the device will catch the generic package-name scheme
+  // that AuthSession.makeRedirectUri() returns by default.
+  const androidGoogleRedirectUri = (() => {
+    if (Platform.OS !== 'android' || !GOOGLE_ANDROID_CLIENT_ID) return undefined;
+    const reversed = GOOGLE_ANDROID_CLIENT_ID.split('.').reverse().join('.');
+    return `${reversed}:/oauth2redirect`;
+  })();
+
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+    webClientId: GOOGLE_WEB_CLIENT_ID,
+    androidClientId: GOOGLE_ANDROID_CLIENT_ID || undefined,
+    iosClientId: GOOGLE_IOS_CLIENT_ID || undefined,
+    // Only override redirectUri on Android — let the lib pick the right
+    // one for web (https) and iOS (custom scheme).
+    ...(androidGoogleRedirectUri ? { redirectUri: androidGoogleRedirectUri } : {}),
+  });
+
+  const redirectUri =
+    androidGoogleRedirectUri || (request as any)?.redirectUri || '';
+
   useEffect(() => {
-    const handleUrl = async (url: string) => {
-      if (url.includes('session_id=')) {
-        setIsProcessingAuth(true);
-        const sessionId = url.split('session_id=')[1]?.split('&')[0];
-        if (sessionId) {
-          try {
-            await login(sessionId);
-            await fetchGameData();
-            await fetchCharacters();
-          } catch (error) {
-            console.error('Login error:', error);
-          }
-        }
-        setIsProcessingAuth(false);
-      }
-    };
-
-    // Check initial URL
-    Linking.getInitialURL().then((url) => {
-      if (url) handleUrl(url);
-    });
-
-    // For web, check hash
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      const hash = window.location.hash;
-      if (hash.includes('session_id=')) {
-        const sessionId = hash.split('session_id=')[1]?.split('&')[0];
-        if (sessionId) {
-          setIsProcessingAuth(true);
-          login(sessionId)
-            .then(() => {
-              fetchGameData();
-              fetchCharacters();
-              // Clear the hash
-              window.history.replaceState(null, '', window.location.pathname);
-            })
-            .catch(console.error)
-            .finally(() => setIsProcessingAuth(false));
-        }
-      }
+    // Always log the redirect URI so the developer can copy-paste it into
+    // Google Cloud Console → OAuth Client → Authorized redirect URIs.
+    if (redirectUri) {
+      console.log('[GoogleAuth] redirect_uri =', redirectUri);
     }
+  }, [redirectUri]);
 
-    // Listen for URL changes
-    const subscription = Linking.addEventListener('url', ({ url }) => handleUrl(url));
-    return () => subscription.remove();
-  }, []);
+  useEffect(() => {
+    if (response?.type === 'success') {
+      const googleIdToken =
+        (response.params as Record<string, string> | undefined)?.id_token;
+      if (!googleIdToken) {
+        console.warn('Google sign-in succeeded but no id_token returned');
+        return;
+      }
+      (async () => {
+        setIsProcessingAuth(true);
+        setAuthErrorDetail(null);
+        try {
+          const firebaseIdToken =
+            await exchangeGoogleIdTokenForFirebaseIdToken(googleIdToken);
+          await loginWithFirebase(firebaseIdToken);
+          await fetchGameData();
+          await fetchCharacters();
+        } catch (err: any) {
+          console.error('Firebase sign-in flow failed:', err);
+          setAuthErrorDetail(String(err?.message || err));
+        } finally {
+          setIsProcessingAuth(false);
+        }
+      })();
+    } else if (response?.type === 'error') {
+      const errMsg =
+        response.error?.message ||
+        (response.params as Record<string, string> | undefined)?.error ||
+        'Unknown auth error';
+      console.warn('Google auth error:', errMsg, response);
+      setAuthErrorDetail(`${errMsg}`);
+    }
+  }, [response]);
+
+  // -------- Legacy Emergent OAuth callback REMOVED ---------------------
+  // The /api/auth/session endpoint and Emergent's auth.emergentagent.com
+  // redirect were retired during the Firebase Auth migration. If you ever
+  // need to re-enable a deep-link callback, restore this useEffect from
+  // git history.
 
   // Check auth on mount
   useEffect(() => {
@@ -85,22 +125,26 @@ export default function Index() {
     });
   }, []);
 
-  const handleGoogleLogin = () => {
-    // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
-    let redirectUrl: string;
-    
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      redirectUrl = window.location.origin;
-    } else {
-      redirectUrl = Linking.createURL('/');
+  const handleGoogleLogin = async () => {
+    if (!GOOGLE_WEB_CLIENT_ID) {
+      console.warn('Missing EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID env var');
+      setAuthErrorDetail('Missing EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID env var');
+      return;
     }
-    
-    const authUrl = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
-    
-    if (Platform.OS === 'web') {
-      window.location.href = authUrl;
-    } else {
-      Linking.openURL(authUrl);
+    setAuthErrorDetail(null);
+    try {
+      await promptAsync();
+    } catch (err: any) {
+      console.error('promptAsync failed:', err);
+      setAuthErrorDetail(String(err?.message || err));
+    }
+  };
+
+  const copyRedirectUri = async () => {
+    try {
+      await Clipboard.setStringAsync(redirectUri || '');
+    } catch {
+      // ignore
     }
   };
 
@@ -171,6 +215,47 @@ export default function Index() {
               <Ionicons name="logo-google" size={24} color="#fff" />
               <Text style={styles.loginButtonText}>Sign in with Google</Text>
             </TouchableOpacity>
+
+            {/* Debug toggle — quiet by default, visible only when needed */}
+            {!authErrorDetail && !showDebug && (
+              <TouchableOpacity
+                onPress={() => setShowDebug(true)}
+                style={styles.debugToggle}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="information-circle-outline" size={12} color="#666" />
+                <Text style={styles.debugToggleText}>Show OAuth debug info</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Debug box — auto-shows on auth error, or manually via toggle */}
+            {(authErrorDetail || showDebug) && (
+              <View style={styles.debugBox}>
+                {authErrorDetail ? (
+                  <Text style={styles.debugError}>⚠ {authErrorDetail}</Text>
+                ) : null}
+                <Text style={styles.debugLabel}>Redirect URI in use:</Text>
+                <Text selectable style={styles.debugUri}>{redirectUri}</Text>
+                <View style={styles.debugBtnRow}>
+                  <TouchableOpacity style={styles.debugCopyBtn} onPress={copyRedirectUri}>
+                    <Ionicons name="copy-outline" size={14} color="#FFD700" />
+                    <Text style={styles.debugCopyText}>Copy redirect URI</Text>
+                  </TouchableOpacity>
+                  {!authErrorDetail && (
+                    <TouchableOpacity
+                      style={styles.debugCopyBtn}
+                      onPress={() => setShowDebug(false)}
+                    >
+                      <Ionicons name="close" size={14} color="#FFD700" />
+                      <Text style={styles.debugCopyText}>Hide</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+                <Text style={styles.debugHelp}>
+                  If you see <Text style={{ fontWeight: '700' }}>redirect_uri_mismatch</Text>, add the URI above to Google Cloud Console → Credentials → Web OAuth client → Authorized redirect URIs.
+                </Text>
+              </View>
+            )}
 
             <Text style={styles.disclaimer}>
               A long time ago in a not so distant galaxy...
@@ -438,6 +523,77 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     marginLeft: 12,
+  },
+  debugBox: {
+    width: '100%',
+    backgroundColor: 'rgba(255,215,0,0.06)',
+    borderColor: 'rgba(255,215,0,0.4)',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 18,
+    marginTop: -8,
+  },
+  debugError: {
+    color: '#FF6B6B',
+    fontSize: 12,
+    marginBottom: 8,
+    fontWeight: '600',
+  },
+  debugLabel: {
+    color: '#FFD700',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    marginBottom: 4,
+  },
+  debugUri: {
+    color: '#fff',
+    fontSize: 12,
+    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 4,
+    marginBottom: 8,
+  },
+  debugCopyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255,215,0,0.12)',
+    gap: 6,
+    marginBottom: 8,
+  },
+  debugBtnRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  debugToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'center',
+    paddingVertical: 8,
+    marginBottom: 8,
+  },
+  debugToggleText: {
+    color: '#666',
+    fontSize: 11,
+    fontStyle: 'italic',
+  },
+  debugCopyText: {
+    color: '#FFD700',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  debugHelp: {
+    color: '#aaa',
+    fontSize: 11,
+    lineHeight: 16,
   },
   disclaimer: {
     color: '#555',

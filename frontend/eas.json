@@ -1,29 +1,54 @@
 {
   "cli": {
     "version": ">= 3.0.0",
-    "appVersionSource": "remote"
+    "appVersionSource": "local"
   },
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_BACKEND_URL": "https://game-deploy-kit.preview.emergentagent.com",
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyCirclfbeqfYdkYygRZc4ReFgazGDi2RPo",
+        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "beyond-the-stars-4a570.firebaseapp.com",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "beyond-the-stars-4a570",
+        "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "beyond-the-stars-4a570.firebasestorage.app",
+        "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "81238382322",
+        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:81238382322:android:6de9c6ab0cb42bf051626b",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "81238382322-8ns9rd022tc5qeov904gl3e0791m61bg.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "81238382322-11lopviucaackjoh3d5kus89hn0ud4ee.apps.googleusercontent.com"
+      }
     },
     "preview": {
       "distribution": "internal",
-      "ios": {
-        "simulator": true
-      },
-      "android": {
-        "buildType": "apk"
+      "ios": { "simulator": true },
+      "android": { "buildType": "apk" },
+      "env": {
+        "EXPO_PUBLIC_BACKEND_URL": "https://game-deploy-kit.preview.emergentagent.com",
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyCirclfbeqfYdkYygRZc4ReFgazGDi2RPo",
+        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "beyond-the-stars-4a570.firebaseapp.com",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "beyond-the-stars-4a570",
+        "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "beyond-the-stars-4a570.firebasestorage.app",
+        "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "81238382322",
+        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:81238382322:android:6de9c6ab0cb42bf051626b",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "81238382322-8ns9rd022tc5qeov904gl3e0791m61bg.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "81238382322-11lopviucaackjoh3d5kus89hn0ud4ee.apps.googleusercontent.com"
       }
     },
     "production": {
       "autoIncrement": true,
-      "ios": {
-        "resourceClass": "m-medium"
-      },
-      "android": {
-        "buildType": "app-bundle"
+      "ios": { "resourceClass": "m-medium" },
+      "android": { "buildType": "app-bundle" },
+      "env": {
+        "EXPO_PUBLIC_BACKEND_URL": "https://game-deploy-kit.preview.emergentagent.com",
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyCirclfbeqfYdkYygRZc4ReFgazGDi2RPo",
+        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "beyond-the-stars-4a570.firebaseapp.com",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "beyond-the-stars-4a570",
+        "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "beyond-the-stars-4a570.firebasestorage.app",
+        "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "81238382322",
+        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:81238382322:android:6de9c6ab0cb42bf051626b",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "81238382322-8ns9rd022tc5qeov904gl3e0791m61bg.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "81238382322-11lopviucaackjoh3d5kus89hn0ud4ee.apps.googleusercontent.com"
       }
     }
   },

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User } from '../types/game';
+import { firebaseLogout } from '../lib/firebase';
 
 const EXPO_PUBLIC_BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
@@ -11,7 +12,12 @@ interface AuthState {
   sessionToken: string | null;
   setUser: (user: User | null) => void;
   setSessionToken: (token: string | null) => void;
-  login: (sessionId: string) => Promise<void>;
+  /**
+   * Send a Firebase ID token (obtained on the client via the Firebase JS
+   * SDK after a Google sign-in) to the backend. The backend verifies it
+   * with firebase-admin and returns a backend session_token + user.
+   */
+  loginWithFirebase: (firebaseIdToken: string) => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
 }
@@ -33,19 +39,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ sessionToken: token });
   },
 
-  login: async (sessionId: string) => {
+  loginWithFirebase: async (firebaseIdToken: string) => {
     try {
-      const response = await fetch(`${EXPO_PUBLIC_BACKEND_URL}/api/auth/session`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      const response = await fetch(
+        `${EXPO_PUBLIC_BACKEND_URL}/api/auth/firebase`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id_token: firebaseIdToken }),
+          credentials: 'include',
         },
-        body: JSON.stringify({ session_id: sessionId }),
-        credentials: 'include',
-      });
+      );
 
       if (!response.ok) {
-        throw new Error('Login failed');
+        const detail = await response.text().catch(() => '');
+        throw new Error(`Firebase login failed (${response.status}): ${detail}`);
       }
 
       const data = await response.json();
@@ -57,7 +65,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isLoading: false,
       });
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('Firebase login error:', error);
       set({ isLoading: false });
       throw error;
     }
@@ -68,14 +76,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const token = await AsyncStorage.getItem('session_token');
       await fetch(`${EXPO_PUBLIC_BACKEND_URL}/api/auth/logout`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
         credentials: 'include',
       });
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
+      // Also sign out from Firebase so the next sign-in picks the right account
+      await firebaseLogout().catch(() => {});
       await AsyncStorage.removeItem('session_token');
       set({
         user: null,
@@ -89,16 +97,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       set({ isLoading: true });
       const token = await AsyncStorage.getItem('session_token');
-      
+
       if (!token) {
         set({ isLoading: false, isAuthenticated: false });
         return;
       }
 
       const response = await fetch(`${EXPO_PUBLIC_BACKEND_URL}/api/auth/me`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
         credentials: 'include',
       });
 
