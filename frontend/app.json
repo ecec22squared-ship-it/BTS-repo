@@ -27,7 +27,7 @@
       "edgeToEdgeEnabled": true,
       "package": "com.ecsquaredgaming.beyondthestars",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 1,
+      "versionCode": 3,
       "permissions": [
         "INTERNET",
         "ACCESS_NETWORK_STATE"
@@ -35,7 +35,10 @@
       "intentFilters": [
         {
           "action": "VIEW",
-          "category": ["DEFAULT", "BROWSABLE"],
+          "category": [
+            "DEFAULT",
+            "BROWSABLE"
+          ],
           "data": {
             "scheme": "com.googleusercontent.apps.81238382322-11lopviucaackjoh3d5kus89hn0ud4ee"
           }
@@ -67,7 +70,7 @@
       "eas": {
         "projectId": "ff6fa9e8-b967-4307-aee6-099524b4eb72"
       },
-      "publisher": "EC²",
+      "publisher": "EC\u00b2",
       "supportEmail": "universal4050@gmail.com",
       "supportUrl": "https://discord.gg/cmV4PMvW2"
     }

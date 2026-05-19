@@ -1,0 +1,166 @@
+name: Android Release Build (AAB)
+
+# Builds a Play-Store-ready signed AAB using the existing EAS-managed keystore
+# (SHA1: BF:17:03:44:6E:B7:82:4D:4D:C9:64:8F:CA:41:37:A5:54:5D:47:A5)
+#
+# Monorepo layout: this workflow lives at /.github/workflows/ at repo root,
+# but all Expo/Android operations run inside /frontend/.
+#
+# Triggers:
+#   • Manual: Actions tab → "Run workflow"
+#   • Auto:   Push a tag starting with "v" (e.g. v1.0.0-build3)
+#
+# Required GitHub Secrets (Settings → Secrets and variables → Actions):
+#   ANDROID_KEYSTORE_BASE64        base64 of @ec-squared-gaming__beyond-the-stars.jks
+#   ANDROID_KEYSTORE_PASSWORD      58f723e3b0926deecd2ad8e497f800e6
+#   ANDROID_KEY_ALIAS              47bbbc7c988c9dccdd64575931d7ac6b
+#   ANDROID_KEY_PASSWORD           1a5c55995582aa2c880070b3afa32821
+#   EXPO_PUBLIC_BACKEND_URL ... (9 total)
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-android:
+    name: Build Signed Release AAB
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    env:
+      EXPO_PUBLIC_BACKEND_URL: ${{ secrets.EXPO_PUBLIC_BACKEND_URL }}
+      EXPO_PUBLIC_FIREBASE_API_KEY: ${{ secrets.EXPO_PUBLIC_FIREBASE_API_KEY }}
+      EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+      EXPO_PUBLIC_FIREBASE_PROJECT_ID: ${{ secrets.EXPO_PUBLIC_FIREBASE_PROJECT_ID }}
+      EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ secrets.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+      EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+      EXPO_PUBLIC_FIREBASE_APP_ID: ${{ secrets.EXPO_PUBLIC_FIREBASE_APP_ID }}
+      EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID }}
+      EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'yarn'
+          cache-dependency-path: frontend/yarn.lock
+
+      - name: Setup Java 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-34 build-tools;34.0.0'
+
+      - name: Install JS dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Decode upload keystore
+        working-directory: .
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > $RUNNER_TEMP/release.jks
+          ls -la $RUNNER_TEMP/release.jks
+          echo "--- Verifying keystore fingerprint ---"
+          keytool -list -v -keystore $RUNNER_TEMP/release.jks \
+            -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
+            -alias "${{ secrets.ANDROID_KEY_ALIAS }}" | grep -E "(SHA1:|SHA256:|Owner:)" || true
+
+      - name: Run expo prebuild (Android)
+        run: npx expo prebuild --platform android --clean --no-install
+
+      - name: Copy google-services.json into native android project
+        run: |
+          cp google-services.json android/app/google-services.json
+          ls -la android/app/google-services.json
+
+      - name: Inject release signing config into android/app/build.gradle
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'android/app/build.gradle';
+          let g = fs.readFileSync(path, 'utf8');
+
+          // 1) Add a release block to signingConfigs (after the debug block)
+          //    Only inject if no release block exists yet
+          const hasReleaseSigning = /signingConfigs\s*\{[\s\S]*?release\s*\{/.test(g);
+          if (!hasReleaseSigning) {
+            g = g.replace(
+              /(signingConfigs\s*\{\s*debug\s*\{[\s\S]*?\}\s*)/,
+              `$1
+              release {
+                  storeFile file(System.getenv("BTS_KEYSTORE_PATH"))
+                  storePassword System.getenv("BTS_KEYSTORE_PASSWORD")
+                  keyAlias System.getenv("BTS_KEY_ALIAS")
+                  keyPassword System.getenv("BTS_KEY_PASSWORD")
+              }
+          `
+            );
+          }
+
+          // 2) Point the release buildType at signingConfigs.release
+          g = g.replace(
+            /(buildTypes\s*\{[\s\S]*?release\s*\{[\s\S]*?signingConfig\s+)signingConfigs\.debug/,
+            '$1signingConfigs.release'
+          );
+
+          fs.writeFileSync(path, g);
+          console.log('--- Patched android/app/build.gradle ---');
+          const sig = g.match(/signingConfigs\s*\{[\s\S]*?\n\s{4}\}/);
+          if (sig) console.log(sig[0]);
+          const rel = g.match(/release\s*\{[\s\S]*?signingConfig\s+signingConfigs\.\w+/);
+          if (rel) console.log(rel[0]);
+          NODE
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('frontend/android/**/*.gradle*', 'frontend/android/gradle/wrapper/gradle-wrapper.properties') }}
+
+      - name: Build signed AAB
+        working-directory: frontend/android
+        env:
+          BTS_KEYSTORE_PATH: ${{ runner.temp }}/release.jks
+          BTS_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          BTS_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          BTS_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          chmod +x ./gradlew
+          ./gradlew bundleRelease --no-daemon --stacktrace
+
+      - name: Verify signed AAB
+        run: |
+          AAB=android/app/build/outputs/bundle/release/app-release.aab
+          ls -la "$AAB"
+          echo "--- AAB signing certificate ---"
+          keytool -printcert -jarfile "$AAB" | grep -E "(SHA1:|SHA256:|Owner:|Valid)" || true
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-aab
+          path: frontend/android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 30
+
+      - name: Attach AAB to GitHub Release (if tag push)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: frontend/android/app/build/outputs/bundle/release/app-release.aab
+          generate_release_notes: true
