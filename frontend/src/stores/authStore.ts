@@ -95,14 +95,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   checkAuth: async () => {
     try {
-      set({ isLoading: true });
+      // Read token FIRST without flipping isLoading. We only show the
+      // global loading spinner when we're going to make a network call —
+      // otherwise we'd briefly hide the just-authenticated UI behind a
+      // spinner on every re-mount.
       const token = await AsyncStorage.getItem('session_token');
 
       if (!token) {
-        set({ isLoading: false, isAuthenticated: false });
+        // No token in storage — but if the store is already authenticated
+        // (e.g. another component instance just finished signing in and
+        // hasn't flushed to AsyncStorage yet), don't wipe it. The race is
+        // common on native after deep-link OAuth redirects.
+        if (get().isAuthenticated) {
+          set({ isLoading: false });
+        } else {
+          set({ isLoading: false, isAuthenticated: false });
+        }
         return;
       }
 
+      set({ isLoading: true });
       const response = await fetch(`${EXPO_PUBLIC_BACKEND_URL}/api/auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
         credentials: 'include',
@@ -123,8 +135,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
     } catch (error) {
       console.error('Auth check error:', error);
-      await AsyncStorage.removeItem('session_token');
-      set({ isLoading: false, isAuthenticated: false, user: null });
+      // Network blip — don't wipe a valid local session over a transient error.
+      set({ isLoading: false });
     }
   },
 }));

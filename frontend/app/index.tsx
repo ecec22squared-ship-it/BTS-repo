@@ -36,6 +36,7 @@ export default function Index() {
   const { characters, fetchCharacters, fetchGameData } = useGameStore();
   const [isProcessingAuth, setIsProcessingAuth] = useState(false);
   const [authErrorDetail, setAuthErrorDetail] = useState<string | null>(null);
+  const [authFlowDebug, setAuthFlowDebug] = useState<string>('');
   const [showDebug, setShowDebug] = useState(false);
 
   // -------- Firebase + Google Sign-In ----------------------------------
@@ -76,30 +77,62 @@ export default function Index() {
   }, [redirectUri]);
 
   useEffect(() => {
-    if (response?.type === 'success') {
-      const googleIdToken =
-        (response.params as Record<string, string> | undefined)?.id_token;
+    if (!response) return;
+
+    // Capture the response shape into the debug panel so we can see exactly
+    // what came back from Google on real devices (logs aren't visible in
+    // production APKs).
+    const paramKeys = response.params
+      ? Object.keys(response.params).join(', ')
+      : '(none)';
+    setAuthFlowDebug(
+      `type=${response.type} | params=[${paramKeys}]` +
+        (response.type === 'error'
+          ? ` | err=${(response as any).error?.message || ''}`
+          : ''),
+    );
+
+    if (response.type === 'success') {
+      const params = (response.params as Record<string, string> | undefined) || {};
+      const googleIdToken = params.id_token;
+      const authCode = params.code;
+
       if (!googleIdToken) {
-        console.warn('Google sign-in succeeded but no id_token returned');
+        // Native Android OAuth often returns an auth code, not an id_token.
+        // Surface the actual response so we can iterate.
+        setAuthErrorDetail(
+          `Google sign-in returned no id_token. Got params: [${paramKeys}]. ` +
+            (authCode
+              ? 'Got authorization code instead — Android client is using code flow.'
+              : 'No code or id_token in response.'),
+        );
         return;
       }
       (async () => {
         setIsProcessingAuth(true);
         setAuthErrorDetail(null);
         try {
+          setAuthFlowDebug((d) => d + ' | exchanging w/ Firebase…');
           const firebaseIdToken =
             await exchangeGoogleIdTokenForFirebaseIdToken(googleIdToken);
+          setAuthFlowDebug((d) => d + ' | OK → backend…');
           await loginWithFirebase(firebaseIdToken);
+          setAuthFlowDebug((d) => d + ' | backend OK → fetching game data');
           await fetchGameData();
           await fetchCharacters();
+          setAuthFlowDebug((d) => d + ' | ✅ DONE');
         } catch (err: any) {
           console.error('Firebase sign-in flow failed:', err);
-          setAuthErrorDetail(String(err?.message || err));
+          setAuthErrorDetail(
+            `[stage: ${
+              (err as any)?.stage || 'unknown'
+            }] ${String(err?.code || '')} ${String(err?.message || err)}`,
+          );
         } finally {
           setIsProcessingAuth(false);
         }
       })();
-    } else if (response?.type === 'error') {
+    } else if (response.type === 'error') {
       const errMsg =
         response.error?.message ||
         (response.params as Record<string, string> | undefined)?.error ||
@@ -229,10 +262,16 @@ export default function Index() {
             )}
 
             {/* Debug box — auto-shows on auth error, or manually via toggle */}
-            {(authErrorDetail || showDebug) && (
+            {(authErrorDetail || showDebug || authFlowDebug) && (
               <View style={styles.debugBox}>
                 {authErrorDetail ? (
                   <Text style={styles.debugError}>⚠ {authErrorDetail}</Text>
+                ) : null}
+                {authFlowDebug ? (
+                  <>
+                    <Text style={styles.debugLabel}>Auth flow:</Text>
+                    <Text selectable style={styles.debugUri}>{authFlowDebug}</Text>
+                  </>
                 ) : null}
                 <Text style={styles.debugLabel}>Redirect URI in use:</Text>
                 <Text selectable style={styles.debugUri}>{redirectUri}</Text>
