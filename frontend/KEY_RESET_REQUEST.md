@@ -1,144 +1,104 @@
-# Google Play — Upload Key Reset Request Kit
+# Google Play — Upload Key Reset Request (READY TO SUBMIT)
 
+> **Status:** Certificate extracted, build pipeline ready. You can submit this **right now**.
 > **Package:** `com.ecsquaredgaming.beyondthestars`
 > **App:** Beyond the Stars
 > **Developer:** EC² · universal4050@gmail.com
-> **Reason:** Existing upload key inaccessible; new EAS-managed keystore generated for the v1.0.0 (versionCode 2) stable release.
 
 ---
 
-## 📋 What Google Needs
+## 🎯 What This Does
 
-Google requires **two artifacts** to approve an upload-key reset:
+You're asking Google Play to **replace the locked upload key** for your `Beyond the Stars` listing.
 
-1. **The new upload certificate** in PEM format (`upload_certificate.pem`)
-2. **A short justification** explaining why the original upload key is unavailable
+| Key | SHA1 | Status |
+|---|---|---|
+| **Current locked upload key** (lost) | `6B:2F:46:87:1D:35:10:15:36:C0:88:25:66:D7:A8:D4:1B:65:8F:A1` | ❌ No longer accessible |
+| **New upload key** (EAS-managed) | `BF:17:03:44:6E:B7:82:4D:4D:C9:64:8F:CA:41:37:A5:54:5D:47:A5` | ✅ Active, used by GitHub Actions build |
 
-That's it. They do NOT need the private key. The new cert is what they pin going forward.
-
----
-
-## 🛠️ STEP 1 — Extract the New Upload Certificate from EAS
-
-Run these commands on your **Windows PC** inside the project directory:
-
-### Option A — Easiest (uses EAS CLI directly)
-
-```bash
-cd path\to\beyond-the-stars
-eas credentials -p android
-```
-
-> ⚠️ In EAS CLI 18.x there is **no `--profile` flag** on the `credentials` command. The profile is chosen inside the interactive menu.
-
-Menu navigation (arrows + Enter):
-1. **Select build profile** → choose **`production`**
-2. **What do you want to do?** → choose **`Keystore: Manage everything needed to build your project`**
-3. **Keystore actions** → choose **`Download existing keystore`**
-   *(If you only see "Set up a new keystore" + "Use an existing keystore", that means EAS doesn't have one on file yet for production. In that case run a quick `eas build --profile production --no-wait` first so EAS generates one, then come back to this menu.)*
-4. EAS writes `keystore.jks` to your current folder and prints:
-   - **Keystore password**
-   - **Key alias**
-   - **Key password**
-   
-   👉 **Copy these three values** — you need them in Option B below.
-
-### Option B — Direct PEM extraction from the downloaded keystore
-
-Once you have `keystore.jks` from Step A, extract the PEM:
-
-```bash
-keytool -export -rfc ^
-  -alias <ALIAS_FROM_EAS_OUTPUT> ^
-  -file upload_certificate.pem ^
-  -keystore keystore.jks ^
-  -storepass <KEYSTORE_PASSWORD_FROM_EAS>
-```
-
-> EAS will print the alias and password when you view the keystore. Typical EAS-generated alias looks like `87ab23cd...` (random hex).
-
-**Verify the PEM**:
-```bash
-keytool -printcert -file upload_certificate.pem
-```
-
-Confirm the SHA1 matches `6B:2F:46:87:1D:35:10:15:36:C0:88:25:66:D7:A8:D4:1B:65:8F:A1` ✅
-
-You now have the file Google needs: **`upload_certificate.pem`**.
+After Google approves (~1–3 business days), all our GitHub-Actions-built AABs will be accepted by Play Console with zero further changes.
 
 ---
 
-## 🌐 STEP 2 — Submit the Reset Request to Google
+## 📎 STEP 1 — Grab the Certificate File
 
-### 2a. Open the official form
+The PEM file is already committed at:
+```
+C:\Users\Neutrano\Documents\BTS-repo\upload_certificate.pem
+```
 
-👉 https://support.google.com/googleplay/android-developer/contact/key
+After your next `git pull`, just open that file. You'll attach it to Google's form.
 
-(You can also reach it via: **Play Console → Setup → App integrity → App signing → Request upload key reset**.)
+> **Contents preview:**
+> ```
+> -----BEGIN CERTIFICATE-----
+> MIIDKTCCAhGgAwIBAgIIRDNiolH/RxQwDQYJKoZIhvcNAQELBQAwQjEJMAcGA1UE
+> ... (truncated, 1155 bytes total)
+> -----END CERTIFICATE-----
+> ```
 
-### 2b. Fill out the form
+---
+
+## 🌐 STEP 2 — Open Google's Form
+
+👉 **https://support.google.com/googleplay/android-developer/contact/key**
+
+Fill in the form fields:
 
 | Field | Value |
 |---|---|
-| **Developer account email** | universal4050@gmail.com |
+| **Email** | universal4050@gmail.com |
+| **Developer account name** | EC² |
+| **Package name** | `com.ecsquaredgaming.beyondthestars` |
 | **App name** | Beyond the Stars |
-| **Package name** | com.ecsquaredgaming.beyondthestars |
-| **Reason for request** | *(paste the script from STEP 3 below)* |
-| **New upload certificate (PEM)** | *(attach `upload_certificate.pem`)* |
 | **Number of apps affected** | 1 |
-| **Confirmation checkbox** | ☑ I understand my new upload key will replace the previous one |
+| **Reason for request** | *(paste the script in Step 3 below)* |
+| **Upload certificate (attach file)** | `upload_certificate.pem` (from Step 1) |
+| **Confirmation checkboxes** | ☑ All applicable |
 
 ---
 
-## ✍️ STEP 3 — Pre-Written Justification (paste into "Reason" field)
-
-> Copy everything between the lines below and paste it into the form's "Reason for request" / "Additional details" field. Edit only the bracketed `[…]` parts if needed.
+## ✍️ STEP 3 — Justification Script (copy-paste into form)
 
 ```
-─────────────────────────────────────────────────────────
-Subject: Upload Key Reset Request — Beyond the Stars
-        (com.ecsquaredgaming.beyondthestars)
-
 Hello Google Play Trust & Safety team,
 
 I am the registered developer of "Beyond the Stars"
 (package name: com.ecsquaredgaming.beyondthestars), published
-under the developer account universal4050@gmail.com / EC².
+under the account universal4050@gmail.com / EC².
 
-I am submitting a new build (version 1.0.0, versionCode 2) of
-this title for an upcoming closed-testing track refresh. The
-previous closed-testing release was signed with upload key
-SHA1: BF:17:03:44:6E:B7:82:4D:4D:C9:64:8F:CA:41:37:A5:54:5D:47:A5
-which is no longer accessible to me. All efforts to recover
-the original keystore have been exhausted.
+I am submitting an upload key reset request because the
+original upload key used for the previous closed-testing
+release of this title is no longer accessible. The
+fingerprint of that original (lost) upload key is:
 
-For the new release I have generated a fresh upload keystore,
-managed by Expo Application Services (EAS) Build, with the
-following fingerprint:
+  SHA1: 6B:2F:46:87:1D:35:10:15:36:C0:88:25:66:D7:A8:D4:1B:65:8F:A1
 
-  SHA1:   6B:2F:46:87:1D:35:10:15:36:C0:88:25:66:D7:A8:D4:1B:65:8F:A1
-  SHA256: (auto-included in attached PEM)
+I have generated a new upload keystore — managed by
+Expo Application Services (EAS) — with the following
+fingerprint:
 
-The new upload certificate (PEM-encoded) is attached as
-`upload_certificate.pem`. This is the certificate I am
-requesting Google Play register as the authoritative upload
-key for `com.ecsquaredgaming.beyondthestars`.
+  SHA1:   BF:17:03:44:6E:B7:82:4D:4D:C9:64:8F:CA:41:37:A5:54:5D:47:A5
+  SHA256: 75:87:97:A1:F6:57:A0:67:58:6B:9E:76:C2:CE:48:EB:B6:E6:AE:1D:86:8A:DD:73:19:70:C9:10:73:BE:E4:F9
 
-This is a non-malicious operational request related to a key
-loss. The app has not been transferred, sold, or impersonated.
-Play App Signing remains enabled on this title, so end-user
-delivery and app integrity are unaffected.
+The PEM-encoded upload certificate is attached as
+`upload_certificate.pem`. Please register this as the
+authoritative upload key for `com.ecsquaredgaming.beyondthestars`
+going forward.
 
 I confirm:
   ✓ I retain full control of the developer account
   ✓ The new upload key is securely stored
   ✓ The package name will NOT change
-  ✓ The Play App Signing key (managed by Google) is unchanged
+  ✓ Play App Signing remains enabled — end-user APK
+    delivery and app integrity are unaffected
   ✓ I am the sole authorised submitter for this title
+  ✓ This is a non-malicious operational request related
+    to key loss, not an account transfer or impersonation
 
-If any additional verification is required, please contact me
-at universal4050@gmail.com or via the Play Console messaging
-center.
+Please contact me at universal4050@gmail.com or via the
+Play Console messaging center if any additional
+verification is required.
 
 Thank you very much for your time and assistance.
 
@@ -146,53 +106,47 @@ Best regards,
 EC²
 Beyond the Stars
 universal4050@gmail.com
-─────────────────────────────────────────────────────────
 ```
 
 ---
 
 ## 📤 STEP 4 — Submit & Wait
 
-- **Typical turnaround:** 24–72 business hours.
-- Google will reply via email to `universal4050@gmail.com`.
-- Once approved, the new SHA1 (`6B:2F:46:87…`) becomes your authoritative upload key.
-- You can then upload the AAB you already built (`Build ID: c6a87f7e-1148-4db9-a967-a524c5ca7789`) — **no rebuild needed**.
+- **Typical response time:** 24–72 business hours
+- Google replies via email to `universal4050@gmail.com`
+- You may receive a follow-up asking to confirm identity (sometimes a screenshot of Play Console while logged in)
 
 ---
 
-## ✅ Post-Approval Checklist (do these in order)
+## ✅ STEP 5 — After Approval
 
-1. **Receive Google's approval email** — it will confirm activation timestamp.
-2. **Play Console → Production → Create new release** (or Closed Testing → Manage track).
-3. **Upload your existing AAB** (`Build ID: c6a87f7e-1148-4db9-a967-a524c5ca7789`).
-   - It should be accepted now that the upload key matches.
-4. Add release notes from `STORE_LISTING.md` → "What's New (v1.0.0 build 2)" section.
-5. Submit for review.
-6. **(Firebase parallel task)** Register the new SHA1 `6B:2F:46:87…` in:
-   - Firebase Console → Project Settings → Your Android app → SHA certificate fingerprints
-   - Google Cloud Console → APIs & Services → Credentials → Your Android OAuth Client → Edit → add SHA1
-   - *(This is needed for Google Sign-In to keep working on prod-signed builds. Already done on EAS preview, but production needs it too.)*
+1. **Re-trigger the GitHub Actions workflow** (or I can do it for you):
+   - https://github.com/ecec22squared-ship-it/BTS-repo/actions → Run workflow
+2. Download the new AAB artifact (signed with `BF:17:03:44…`)
+3. Upload to Play Console → Closed Testing → Create new release
+4. ✅ Play Console accepts it (because the upload key matches)
 
 ---
 
-## 🆘 If Google Denies the Request
+## 🆘 If Google Denies / Asks for More Info
 
-Rare, but possible if they can't verify identity. Fallback options in priority order:
+Most common follow-up: "Can you confirm you still control the developer account?" — just reply with a screenshot of your Play Console (logged in, showing the Beyond the Stars listing).
 
-1. **Reply to their email with additional proof** (developer account screenshot, EAS build URL showing the same project owner)
-2. **Re-submit using Path B** (Play Console in-product "Request key reset" — slightly different routing, same outcome)
-3. **Pivot to new package name** (`com.ecsquaredgaming.bts` or similar) and create a fresh listing — code changes already scoped in earlier conversation
+Less common: "Can you provide the original upload certificate fingerprint?" — you already have it: `SHA1: 6B:2F:46:87…` (in your justification text above).
 
 ---
 
-## 📎 Quick-Reference: Files & Fingerprints
+## 📎 Reference
 
 | Item | Value |
 |---|---|
-| EAS Build ID | `c6a87f7e-1148-4db9-a967-a524c5ca7789` |
-| EAS Project ID | `ff6fa9e8-b967-4307-aee6-099524b4eb72` |
+| Developer | EC² |
+| Email | universal4050@gmail.com |
 | Package | `com.ecsquaredgaming.beyondthestars` |
-| Old upload SHA1 | `BF:17:03:44:6E:B7:82:4D:4D:C9:64:8F:CA:41:37:A5:54:5D:47:A5` |
-| **New upload SHA1** | **`6B:2F:46:87:1D:35:10:15:36:C0:88:25:66:D7:A8:D4:1B:65:8F:A1`** |
-| New cert file (you generate) | `upload_certificate.pem` |
-| Developer email | universal4050@gmail.com |
+| **Lost upload key SHA1** | `6B:2F:46:87:1D:35:10:15:36:C0:88:25:66:D7:A8:D4:1B:65:8F:A1` |
+| **New upload key SHA1** | `BF:17:03:44:6E:B7:82:4D:4D:C9:64:8F:CA:41:37:A5:54:5D:47:A5` |
+| New upload key SHA256 | `75:87:97:A1:F6:57:A0:67:58:6B:9E:76:C2:CE:48:EB:B6:E6:AE:1D:86:8A:DD:73:19:70:C9:10:73:BE:E4:F9` |
+| Valid from | 2026-05-08 01:52 UTC |
+| Valid to | 2053-09-23 01:52 UTC (27 years) |
+| Form URL | https://support.google.com/googleplay/android-developer/contact/key |
+| Cert file | `upload_certificate.pem` (in repo root) |
